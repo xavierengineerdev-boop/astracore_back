@@ -525,6 +525,25 @@ export class LeadService {
     await this.leadModel.findByIdAndDelete(id).exec();
   }
 
+  /** Bulk delete: only deletes leads user can edit; returns count of deleted */
+  async bulkDelete(leadIds: string[], userId: string, userRole: string): Promise<{ deleted: number }> {
+    let deleted = 0;
+    for (const id of leadIds) {
+      try {
+        const doc = await this.leadModel.findById(id).lean().exec();
+        if (!doc) continue;
+        const item = this.toItem(doc);
+        const can = await this.canEditLead(item, userId, userRole);
+        if (!can) continue;
+        await this.leadModel.findByIdAndDelete(id).exec();
+        deleted += 1;
+      } catch {
+        // skip
+      }
+    }
+    return { deleted };
+  }
+
   async getNotes(leadId: string, userId: string, userRole: string): Promise<LeadNoteItem[]> {
     const lead = await this.leadModel.findById(leadId).lean().exec();
     if (!lead) throw new NotFoundException('Lead not found');

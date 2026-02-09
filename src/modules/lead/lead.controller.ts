@@ -21,6 +21,7 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { BulkCreateLeadsDto } from './dto/bulk-create-leads.dto';
 import { BulkUpdateLeadsDto } from './dto/bulk-update-leads.dto';
+import { BulkDeleteLeadsDto } from './dto/bulk-delete-leads.dto';
 
 type ReqUser = { user: { userId: string; role: string } };
 
@@ -85,6 +86,19 @@ export class LeadController {
     if (dto.statusId !== undefined) payload.statusId = dto.statusId?.trim() ?? '';
     if (dto.assignedTo !== undefined) payload.assignedTo = dto.assignedTo;
     return this.leadService.bulkUpdate(leadIds, payload, req.user.userId, req.user.role as UserRole);
+  }
+
+  @Post('bulk-delete')
+  @ApiOperation({ summary: 'Bulk delete leads (super or department manager only)' })
+  @ApiBody({ type: BulkDeleteLeadsDto })
+  @ApiResponse({ status: 200, description: 'Number of leads deleted' })
+  async bulkDelete(@Req() req: ReqUser, @Body() dto: BulkDeleteLeadsDto) {
+    if (req.user.role !== 'super' && req.user.role !== 'manager') {
+      throw new ForbiddenException('Массовое удаление доступно только руководителю отдела');
+    }
+    const leadIds = (dto.leadIds || []).filter((id) => id?.trim()).map((id) => id.trim());
+    if (leadIds.length === 0) return { deleted: 0 };
+    return this.leadService.bulkDelete(leadIds, req.user.userId, req.user.role as UserRole);
   }
 
   @Get()
