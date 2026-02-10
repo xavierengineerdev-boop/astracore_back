@@ -294,7 +294,7 @@ export class LeadService {
 
   async bulkCreate(
     departmentId: string,
-    items: { name: string; phone: string }[],
+    items: { name: string; phone: string; email?: string }[],
     userId: string,
     userRole: string,
   ): Promise<BulkCreateResult> {
@@ -304,7 +304,11 @@ export class LeadService {
     if (!department) throw new NotFoundException('Department not found');
 
     const normalized = items
-      .map((i) => ({ name: (i.name ?? '').trim(), phone: (i.phone ?? '').trim() }))
+      .map((i) => ({
+        name: (i.name ?? '').trim(),
+        phone: (i.phone ?? '').trim(),
+        email: (i.email ?? '').trim().toLowerCase(),
+      }))
       .filter((i) => i.name.length > 0 && i.phone.length > 0);
 
     if (normalized.length === 0) {
@@ -336,7 +340,9 @@ export class LeadService {
           name: i.name,
           lastName: '',
           phone: i.phone,
-          email: '',
+          phone2: '',
+          email: i.email ?? '',
+          email2: '',
           departmentId: deptId,
           statusId: null,
           comment: '',

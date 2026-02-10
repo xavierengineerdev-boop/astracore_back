@@ -68,7 +68,7 @@ export class LeadController {
     }
     return this.leadService.bulkCreate(
       dto.departmentId.trim(),
-      dto.items.map((i) => ({ name: i.name.trim(), phone: i.phone.trim() })),
+      dto.items.map((i) => ({ name: i.name.trim(), phone: i.phone.trim(), email: i.email?.trim() })),
       req.user.userId,
       req.user.role as UserRole,
     );

@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, MinLength, ArrayMinSize, ValidateNested } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsArray, MinLength, IsOptional, ArrayMinSize, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class BulkCreateLeadItemDto {
@@ -12,6 +12,11 @@ export class BulkCreateLeadItemDto {
   @IsString()
   @MinLength(1, { message: 'Phone is required' })
   phone: string;
+
+  @ApiPropertyOptional({ description: 'Email (необязательно)', example: 'ivan@example.com' })
+  @IsOptional()
+  @IsString()
+  email?: string;
 }
 
 export class BulkCreateLeadsDto {
@@ -22,7 +27,7 @@ export class BulkCreateLeadsDto {
 
   @ApiProperty({
     type: [BulkCreateLeadItemDto],
-    description: 'List of leads (name + phone). Duplicates by phone in department are skipped.',
+    description: 'List of leads (name, phone, optional email). Duplicates by phone in department are skipped.',
   })
   @IsArray()
   @ValidateNested({ each: true })
