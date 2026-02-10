@@ -29,7 +29,9 @@ export type LeadItem = {
   name: string;
   lastName: string;
   phone: string;
+  phone2: string;
   email: string;
+  email2: string;
   departmentId: string;
   statusId: string | null;
   source: string;
@@ -206,7 +208,9 @@ export class LeadService {
       name: string;
       lastName?: string;
       phone?: string;
+      phone2?: string;
       email?: string;
+      email2?: string;
       departmentId: string;
       statusId?: string;
       source?: string;
@@ -258,11 +262,15 @@ export class LeadService {
               dto.sourceMeta.extra && typeof dto.sourceMeta.extra === 'object' ? dto.sourceMeta.extra : undefined,
           }
         : undefined;
+    const phone2 = (dto.phone2 ?? '').trim();
+    const email2 = (dto.email2 ?? '').trim().toLowerCase();
     const doc = await this.leadModel.create({
       name: dto.name.trim(),
       lastName: (dto.lastName ?? '').trim(),
       phone,
+      phone2,
       email,
+      email2,
       departmentId: deptId,
       statusId: dto.statusId ? new Types.ObjectId(dto.statusId) : null,
       comment: '',
@@ -452,7 +460,7 @@ export class LeadService {
 
   async update(
     id: string,
-    dto: { name?: string; lastName?: string; phone?: string; email?: string; statusId?: string; assignedTo?: string[] },
+    dto: { name?: string; lastName?: string; phone?: string; phone2?: string; email?: string; email2?: string; statusId?: string; assignedTo?: string[] },
     userId: string,
     userRole: string,
   ): Promise<LeadItem> {
@@ -499,6 +507,8 @@ export class LeadService {
       }
       doc.email = email;
     }
+    if (dto.phone2 !== undefined) doc.phone2 = (dto.phone2 ?? '').trim();
+    if (dto.email2 !== undefined) doc.email2 = (dto.email2 ?? '').trim().toLowerCase();
     if (dto.name !== undefined) doc.name = dto.name.trim();
     if (dto.lastName !== undefined) doc.lastName = (dto.lastName ?? '').trim();
     if (dto.statusId !== undefined) doc.statusId = dto.statusId ? (new Types.ObjectId(dto.statusId) as any) : null;
@@ -516,7 +526,9 @@ export class LeadService {
     if (dto.name !== undefined) otherUpdates.name = updatedItem.name;
     if (dto.lastName !== undefined) otherUpdates.lastName = updatedItem.lastName;
     if (dto.phone !== undefined) otherUpdates.phone = updatedItem.phone;
+    if (dto.phone2 !== undefined) otherUpdates.phone2 = updatedItem.phone2;
     if (dto.email !== undefined) otherUpdates.email = updatedItem.email;
+    if (dto.email2 !== undefined) otherUpdates.email2 = updatedItem.email2;
     if (Object.keys(otherUpdates).length > 0) {
       await this.addHistory(id, 'updated', userId, otherUpdates);
     }
@@ -1292,7 +1304,9 @@ export class LeadService {
       name: d.name ?? '',
       lastName: d.lastName ?? '',
       phone: d.phone ?? '',
+      phone2: d.phone2 ?? '',
       email: d.email ?? '',
+      email2: d.email2 ?? '',
       departmentId: String(d.departmentId),
       statusId: d.statusId ? String(d.statusId) : null,
       source: d.source ?? 'manual',

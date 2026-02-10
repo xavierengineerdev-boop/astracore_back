@@ -51,7 +51,13 @@ export class Lead {
   phone: string;
 
   @Prop({ trim: true, default: '' })
+  phone2: string;
+
+  @Prop({ trim: true, default: '' })
   email: string;
+
+  @Prop({ trim: true, default: '' })
+  email2: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Department', required: true })
   departmentId: MongooseSchema.Types.ObjectId;

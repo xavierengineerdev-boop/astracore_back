@@ -70,10 +70,20 @@ export class CreateLeadDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ description: 'Второй телефон' })
+  @IsOptional()
+  @IsString()
+  phone2?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   email?: string;
+
+  @ApiPropertyOptional({ description: 'Вторая почта' })
+  @IsOptional()
+  @IsString()
+  email2?: string;
 
   @ApiProperty({ description: 'Department ID' })
   @IsString()
