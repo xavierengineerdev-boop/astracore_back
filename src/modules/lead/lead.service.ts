@@ -162,7 +162,10 @@ export class LeadService {
     return department?.managerId ? String(department.managerId) === String(userId) : false;
   }
 
-  /** Can view leads: super, admin, manager of dept, employee of dept */
+  /**
+   * Can view leads: super, admin, manager of dept (руководитель), employee of dept.
+   * Менеджер (руководитель отдела) может: комментировать, добавлять заметки, создавать лидов, редактировать (в т.ч. телефон).
+   */
   async canViewDepartment(departmentId: string, userId: string, userRole: string): Promise<boolean> {
     if (userRole === 'super' || userRole === 'admin') return true;
     if (await this.canManageDepartment(departmentId, userId, userRole)) return true;
@@ -173,7 +176,7 @@ export class LeadService {
     return false;
   }
 
-  /** Can create lead in department: super, manager of dept, or employee of dept */
+  /** Can create lead in department: super, manager of dept (руководитель), or employee of dept */
   async canCreateInDepartment(departmentId: string, userId: string, userRole: string): Promise<boolean> {
     if (userRole === 'super') return true;
     if (await this.canManageDepartment(departmentId, userId, userRole)) return true;
@@ -184,7 +187,11 @@ export class LeadService {
     return false;
   }
 
-  /** Can edit/delete lead: super or (view access to lead's department). Сотрудник — только лиды, назначенные на него. */
+  /**
+   * Can edit/delete lead: super, admin, manager of dept (руководитель) — все лиды отдела;
+   * сотрудник — только лиды, назначенные на него.
+   * Редактирование включает: комментарии, заметки, изменение телефона/почты и т.д.
+   */
   async canEditLead(lead: LeadItem, userId: string, userRole: string): Promise<boolean> {
     const canView = await this.canViewDepartment(lead.departmentId, userId, userRole);
     if (!canView) return false;
@@ -495,6 +502,20 @@ export class LeadService {
         throw new BadRequestException('Назначить можно только сотрудников или руководителя отдела');
       }
       doc.assignedTo = assignedToIds.map((id) => new Types.ObjectId(id) as any);
+    }
+    const canChangePhone =
+      userRole === 'super' || userRole === 'admin' || (await this.canManageDepartment(item.departmentId, userId, userRole));
+    const currentPhone = (item.phone ?? '').trim();
+    const currentPhone2 = (item.phone2 ?? '').trim();
+    if (dto.phone !== undefined && !canChangePhone) {
+      if (currentPhone && dto.phone.trim() !== currentPhone) {
+        throw new ForbiddenException('Изменять номер телефона может только руководитель отдела');
+      }
+    }
+    if (dto.phone2 !== undefined && !canChangePhone) {
+      if (currentPhone2 && dto.phone2.trim() !== currentPhone2) {
+        throw new ForbiddenException('Изменять второй номер может только руководитель; можно только добавить, если поле пусто');
+      }
     }
     if (dto.phone !== undefined) {
       const phone = dto.phone.trim();
