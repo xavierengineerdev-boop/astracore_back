@@ -412,10 +412,9 @@ export class LeadService {
         query.createdAt = { $lte: to };
       }
     }
-
     const sortBy = sort?.sortBy?.trim() || 'createdAt';
     const sortOrder = sort?.sortOrder === 'asc' ? 1 : -1;
-    const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'statusId'];
+    const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'updatedAt', 'statusId'];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
     const sortOpt = { [sortField]: sortOrder };
 
@@ -1121,7 +1120,7 @@ export class LeadService {
 
     const sortBy = sort?.sortBy?.trim() || 'createdAt';
     const sortOrder = sort?.sortOrder === 'asc' ? 1 : -1;
-    const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'statusId'];
+    const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'updatedAt', 'statusId'];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
     const sortOpt = { [sortField]: sortOrder };
 
