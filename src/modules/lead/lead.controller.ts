@@ -229,6 +229,42 @@ export class LeadController {
     return { message: 'Note deleted' };
   }
 
+  @Get(':id/comments')
+  @ApiOperation({ summary: 'List comments for a lead' })
+  @ApiResponse({ status: 200, description: 'List of comments' })
+  async getComments(@Req() req: ReqUser, @Param('id') id: string) {
+    return this.leadService.getComments(id, req.user.userId, req.user.role as UserRole);
+  }
+
+  @Post(':id/comments')
+  @ApiOperation({ summary: 'Add comment to lead' })
+  @ApiBody({ schema: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'] } })
+  @ApiResponse({ status: 201, description: 'Comment created' })
+  async addComment(@Req() req: ReqUser, @Param('id') id: string, @Body() body: { content: string }) {
+    return this.leadService.addComment(id, body.content ?? '', req.user.userId, req.user.role as UserRole);
+  }
+
+  @Patch(':id/comments/:commentId')
+  @ApiOperation({ summary: 'Update comment (manager or comment author)' })
+  @ApiBody({ schema: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'] } })
+  @ApiResponse({ status: 200, description: 'Comment updated' })
+  async updateComment(
+    @Req() req: ReqUser,
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @Body() body: { content: string },
+  ) {
+    return this.leadService.updateComment(id, commentId, body.content ?? '', req.user.userId, req.user.role as UserRole);
+  }
+
+  @Delete(':id/comments/:commentId')
+  @ApiOperation({ summary: 'Delete comment (manager or comment author)' })
+  @ApiResponse({ status: 200, description: 'Comment deleted' })
+  async deleteComment(@Req() req: ReqUser, @Param('id') id: string, @Param('commentId') commentId: string) {
+    await this.leadService.deleteComment(id, commentId, req.user.userId, req.user.role as UserRole);
+    return { message: 'Comment deleted' };
+  }
+
   @Get(':id/history')
   @ApiOperation({ summary: 'Get lead history (creation, updates, notes)' })
   @ApiResponse({ status: 200, description: 'List of history entries' })

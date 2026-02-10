@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Lead, LeadSchema } from './lead.schema';
 import { LeadNote, LeadNoteSchema } from './lead-note.schema';
+import { LeadComment, LeadCommentSchema } from './lead-comment.schema';
 import { LeadHistory, LeadHistorySchema } from './lead-history.schema';
 import { LeadTask, LeadTaskSchema } from './lead-task.schema';
 import { LeadReminder, LeadReminderSchema } from './lead-reminder.schema';
@@ -16,6 +17,7 @@ import { StatusModule } from '../status/status.module';
     MongooseModule.forFeature([
       { name: Lead.name, schema: LeadSchema },
       { name: LeadNote.name, schema: LeadNoteSchema },
+      { name: LeadComment.name, schema: LeadCommentSchema },
       { name: LeadHistory.name, schema: LeadHistorySchema },
       { name: LeadTask.name, schema: LeadTaskSchema },
       { name: LeadReminder.name, schema: LeadReminderSchema },

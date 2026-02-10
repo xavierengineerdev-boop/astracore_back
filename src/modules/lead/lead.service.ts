@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lead, LeadDocument } from './lead.schema';
 import { LeadNote, LeadNoteDocument } from './lead-note.schema';
+import { LeadComment, LeadCommentDocument } from './lead-comment.schema';
 import { LeadHistory, LeadHistoryDocument, LeadHistoryAction } from './lead-history.schema';
 import { LeadTask, LeadTaskDocument } from './lead-task.schema';
 import { LeadReminder, LeadReminderDocument } from './lead-reminder.schema';
@@ -53,6 +54,15 @@ export type BulkCreateResult = {
 };
 
 export type LeadNoteItem = {
+  _id: string;
+  leadId: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LeadCommentItem = {
   _id: string;
   leadId: string;
   authorId: string;
@@ -120,6 +130,7 @@ export class LeadService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
     @InjectModel(LeadNote.name) private leadNoteModel: Model<LeadNoteDocument>,
+    @InjectModel(LeadComment.name) private leadCommentModel: Model<LeadCommentDocument>,
     @InjectModel(LeadHistory.name) private leadHistoryModel: Model<LeadHistoryDocument>,
     @InjectModel(LeadTask.name) private leadTaskModel: Model<LeadTaskDocument>,
     @InjectModel(LeadReminder.name) private leadReminderModel: Model<LeadReminderDocument>,
@@ -645,6 +656,93 @@ export class LeadService {
     }
     await this.leadNoteModel.findByIdAndDelete(noteId).exec();
     await this.addHistory(leadId, 'note_deleted', userId, { noteId });
+  }
+
+  async getComments(leadId: string, userId: string, userRole: string): Promise<LeadCommentItem[]> {
+    const lead = await this.leadModel.findById(leadId).lean().exec();
+    if (!lead) throw new NotFoundException('Lead not found');
+    const item = this.toItem(lead);
+    const can = await this.canEditLead(item, userId, userRole);
+    if (!can) throw new ForbiddenException('You cannot view this lead');
+    const comments = await this.leadCommentModel.find({ leadId: new Types.ObjectId(leadId) }).sort({ createdAt: 1 }).lean().exec();
+    return comments.map((c: any) => ({
+      _id: String(c._id),
+      leadId: String(c.leadId),
+      authorId: String(c.authorId),
+      content: c.content ?? '',
+      createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
+      updatedAt: c.updatedAt ? new Date(c.updatedAt).toISOString() : '',
+    }));
+  }
+
+  async addComment(leadId: string, content: string, userId: string, userRole: string): Promise<LeadCommentItem> {
+    const lead = await this.leadModel.findById(leadId).lean().exec();
+    if (!lead) throw new NotFoundException('Lead not found');
+    const item = this.toItem(lead);
+    const can = await this.canEditLead(item, userId, userRole);
+    if (!can) throw new ForbiddenException('You cannot add comments to this lead');
+    const trimmed = (content ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Текст комментария не может быть пустым');
+    const doc = await this.leadCommentModel.create({
+      leadId: new Types.ObjectId(leadId),
+      authorId: new Types.ObjectId(userId),
+      content: trimmed,
+    });
+    const docObj = doc as any;
+    const commentItem: LeadCommentItem = {
+      _id: String(doc._id),
+      leadId: String(doc.leadId),
+      authorId: String(doc.authorId),
+      content: doc.content,
+      createdAt: docObj.createdAt ? new Date(docObj.createdAt).toISOString() : '',
+      updatedAt: docObj.updatedAt ? new Date(docObj.updatedAt).toISOString() : '',
+    };
+    await this.addHistory(leadId, 'comment_added', userId, { commentId: commentItem._id, content: trimmed });
+    return commentItem;
+  }
+
+  async updateComment(leadId: string, commentId: string, content: string, userId: string, userRole: string): Promise<LeadCommentItem> {
+    const lead = await this.leadModel.findById(leadId).lean().exec();
+    if (!lead) throw new NotFoundException('Lead not found');
+    const item = this.toItem(lead);
+    const can = await this.canEditLead(item, userId, userRole);
+    if (!can) throw new ForbiddenException('You cannot edit comments of this lead');
+    const doc = await this.leadCommentModel.findOne({ _id: new Types.ObjectId(commentId), leadId: new Types.ObjectId(leadId) }).exec();
+    if (!doc) throw new NotFoundException('Comment not found');
+    const isManager = userRole === 'super' || userRole === 'admin' || userRole === 'manager';
+    if (!isManager && String(doc.authorId) !== String(userId)) {
+      throw new ForbiddenException('Сотрудник может редактировать только свои комментарии');
+    }
+    const trimmed = (content ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Текст комментария не может быть пустым');
+    doc.content = trimmed;
+    await doc.save();
+    await this.addHistory(leadId, 'comment_edited', userId, { commentId, content: trimmed });
+    const docObj = doc as any;
+    return {
+      _id: String(doc._id),
+      leadId: String(doc.leadId),
+      authorId: String(doc.authorId),
+      content: doc.content,
+      createdAt: docObj.createdAt ? new Date(docObj.createdAt).toISOString() : '',
+      updatedAt: docObj.updatedAt ? new Date(docObj.updatedAt).toISOString() : '',
+    };
+  }
+
+  async deleteComment(leadId: string, commentId: string, userId: string, userRole: string): Promise<void> {
+    const lead = await this.leadModel.findById(leadId).lean().exec();
+    if (!lead) throw new NotFoundException('Lead not found');
+    const item = this.toItem(lead);
+    const can = await this.canEditLead(item, userId, userRole);
+    if (!can) throw new ForbiddenException('You cannot delete comments of this lead');
+    const doc = await this.leadCommentModel.findOne({ _id: new Types.ObjectId(commentId), leadId: new Types.ObjectId(leadId) }).exec();
+    if (!doc) throw new NotFoundException('Comment not found');
+    const isManager = userRole === 'super' || userRole === 'admin' || userRole === 'manager';
+    if (!isManager && String(doc.authorId) !== String(userId)) {
+      throw new ForbiddenException('Сотрудник может удалять только свои комментарии');
+    }
+    await this.leadCommentModel.findByIdAndDelete(commentId).exec();
+    await this.addHistory(leadId, 'comment_deleted', userId, { commentId });
   }
 
   private toTaskItem(doc: any): LeadTaskItem {
