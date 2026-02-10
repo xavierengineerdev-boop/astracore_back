@@ -88,6 +88,15 @@ export class DashboardService {
     return [];
   }
 
+  /** Для сотрудника — только лиды, назначенные на него. Для остальных — без ограничения по assignedTo. */
+  private leadMatchFilter(userId: string, role: string, deptObjectIds: Types.ObjectId[]): Record<string, unknown> {
+    const base: Record<string, unknown> = { departmentId: { $in: deptObjectIds } };
+    if (role === 'employee') {
+      base.assignedTo = new Types.ObjectId(userId);
+    }
+    return base;
+  }
+
   async getSummary(userId: string, role: string): Promise<DashboardSummary> {
     const deptIds = await this.getAllowedDepartmentIds(userId, role);
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
@@ -106,7 +115,8 @@ export class DashboardService {
 
     let leadsCount = 0;
     if (objectIds.length > 0) {
-      leadsCount = await this.leadModel.countDocuments({ departmentId: { $in: objectIds } }).exec();
+      const match = this.leadMatchFilter(userId, role, objectIds);
+      leadsCount = await this.leadModel.countDocuments(match).exec();
     }
 
     return { usersCount, departmentsCount, leadsCount };
@@ -117,9 +127,10 @@ export class DashboardService {
     if (deptIds.length === 0) return [];
 
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
+    const match = this.leadMatchFilter(userId, role, objectIds);
     const agg = await this.leadModel
       .aggregate([
-        { $match: { departmentId: { $in: objectIds } } },
+        { $match: match },
         { $group: { _id: '$statusId', count: { $sum: 1 } } },
       ])
       .exec();
@@ -151,9 +162,10 @@ export class DashboardService {
     from.setDate(from.getDate() - days);
     from.setUTCHours(0, 0, 0, 0);
 
+    const match = { ...this.leadMatchFilter(userId, role, objectIds), createdAt: { $gte: from } };
     const agg = await this.leadModel
       .aggregate([
-        { $match: { departmentId: { $in: objectIds }, createdAt: { $gte: from } } },
+        { $match: match },
         {
           $group: {
             _id: {
@@ -182,8 +194,9 @@ export class DashboardService {
     const deptIds = await this.getAllowedDepartmentIds(userId, role);
     if (deptIds.length === 0) return [];
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
+    const match = this.leadMatchFilter(userId, role, objectIds);
     const list = await this.leadModel
-      .find({ departmentId: { $in: objectIds } })
+      .find(match)
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
@@ -209,7 +222,8 @@ export class DashboardService {
     const deptList = await this.departmentService.findAll();
     const allowed = deptList.filter((d) => deptIds.includes(d._id));
     const objectIds = allowed.map((d) => new Types.ObjectId(d._id));
-    const counts = await this.leadModel.aggregate([{ $match: { departmentId: { $in: objectIds } } }, { $group: { _id: '$departmentId', count: { $sum: 1 } } }]).exec();
+    const match = this.leadMatchFilter(userId, role, objectIds);
+    const counts = await this.leadModel.aggregate([{ $match: match }, { $group: { _id: '$departmentId', count: { $sum: 1 } } }]).exec();
     const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
     return allowed.map((d) => ({ departmentId: d._id, departmentName: d.name, leadsCount: countMap.get(d._id) ?? 0 }));
   }
@@ -218,9 +232,10 @@ export class DashboardService {
     const deptIds = await this.getAllowedDepartmentIds(userId, role);
     if (deptIds.length === 0) return [];
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
+    const match = this.leadMatchFilter(userId, role, objectIds);
     const agg = await this.leadModel
       .aggregate([
-        { $match: { departmentId: { $in: objectIds } } },
+        { $match: match },
         { $unwind: '$assignedTo' },
         { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
@@ -237,9 +252,10 @@ export class DashboardService {
     const deptIds = await this.getAllowedDepartmentIds(userId, role);
     if (deptIds.length === 0) return { leadsWithoutStatus: 0, leadsUnassigned: 0 };
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
+    const baseMatch = this.leadMatchFilter(userId, role, objectIds);
     const [withoutStatus, unassigned] = await Promise.all([
-      this.leadModel.countDocuments({ departmentId: { $in: objectIds }, $or: [{ statusId: null }, { statusId: { $exists: false } }] }).exec(),
-      this.leadModel.countDocuments({ departmentId: { $in: objectIds }, $or: [{ assignedTo: { $size: 0 } }, { assignedTo: [] }] }).exec(),
+      this.leadModel.countDocuments({ ...baseMatch, $or: [{ statusId: null }, { statusId: { $exists: false } }] }).exec(),
+      this.leadModel.countDocuments({ ...baseMatch, $or: [{ assignedTo: { $size: 0 } }, { assignedTo: [] }] }).exec(),
     ]);
     return { leadsWithoutStatus: withoutStatus, leadsUnassigned: unassigned };
   }
@@ -255,7 +271,9 @@ export class DashboardService {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setUTCHours(23, 59, 59, 999);
-    const leadIds = await this.leadModel.find({ departmentId: { $in: deptIds.map((id) => new Types.ObjectId(id)) } }).select('_id').lean().exec();
+    const objectIds = deptIds.map((id) => new Types.ObjectId(id));
+    const match = this.leadMatchFilter(userId, role, objectIds);
+    const leadIds = await this.leadModel.find(match).select('_id').lean().exec();
     const leadIdSet = new Set(leadIds.map((l: any) => String(l._id)));
     const [reminders, tasks] = await Promise.all([
       this.leadReminderModel

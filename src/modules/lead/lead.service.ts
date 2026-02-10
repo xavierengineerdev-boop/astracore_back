@@ -171,9 +171,15 @@ export class LeadService {
     return false;
   }
 
-  /** Can edit/delete lead: super or (view access to lead's department) */
+  /** Can edit/delete lead: super or (view access to lead's department). Сотрудник — только лиды, назначенные на него. */
   async canEditLead(lead: LeadItem, userId: string, userRole: string): Promise<boolean> {
-    return this.canViewDepartment(lead.departmentId, userId, userRole);
+    const canView = await this.canViewDepartment(lead.departmentId, userId, userRole);
+    if (!canView) return false;
+    if (userRole === 'employee') {
+      const assignedIds = (lead.assignedTo || []).map(String);
+      return assignedIds.includes(userId);
+    }
+    return true;
   }
 
   /** Allowed assignee user ids for a department (manager + employees) */
@@ -360,6 +366,11 @@ export class LeadService {
 
     const query: Record<string, unknown> = { departmentId: new Types.ObjectId(departmentId) };
 
+    // Сотрудник видит только лиды, назначенные на него. Руководитель, админ, супер — всех.
+    if (userRole === 'employee') {
+      query.assignedTo = new Types.ObjectId(userId);
+    }
+
     if (filters?.name?.trim()) {
       query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
     }
@@ -372,7 +383,7 @@ export class LeadService {
     if (filters?.statusId?.trim()) {
       query.statusId = new Types.ObjectId(filters.statusId.trim());
     }
-    if (filters?.assignedTo?.trim()) {
+    if (filters?.assignedTo?.trim() && userRole !== 'employee') {
       query.assignedTo = new Types.ObjectId(filters.assignedTo.trim());
     }
     if (filters?.dateFrom?.trim() || filters?.dateTo?.trim()) {
@@ -421,6 +432,11 @@ export class LeadService {
     const item = this.toItem(doc);
     const can = await this.canViewDepartment(item.departmentId, userId, userRole);
     if (!can) return null;
+    // Сотрудник может открыть только лид, назначенный на него
+    if (userRole === 'employee') {
+      const assignedIds = (item.assignedTo || []).map(String);
+      if (!assignedIds.includes(userId)) return null;
+    }
     return item;
   }
 
