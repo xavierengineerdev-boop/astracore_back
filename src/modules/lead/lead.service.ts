@@ -10,6 +10,7 @@ import { LeadReminder, LeadReminderDocument } from './lead-reminder.schema';
 import { DepartmentService, DepartmentDetail } from '../department/department.service';
 import { UserService } from '../user/user.service';
 import { StatusService } from '../status/status.service';
+import { SiteService } from '../site/site.service';
 
 export type LeadSourceMetaItem = {
   ip?: string;
@@ -139,6 +140,7 @@ export class LeadService {
     private departmentService: DepartmentService,
     private userService: UserService,
     private statusService: StatusService,
+    private siteService: SiteService,
   ) {}
 
   private async addHistory(
@@ -299,6 +301,59 @@ export class LeadService {
     return item;
   }
 
+  /** Публичное создание лида по токену сайта (форма на сайте). */
+  async createFromSiteToken(
+    dto: {
+      token: string;
+      name: string;
+      phone?: string;
+      email?: string;
+      additionalInfo?: string;
+      sourceMeta?: LeadSourceMetaItem;
+    },
+    requestMeta: { ip?: string; userAgent?: string; referrer?: string },
+  ): Promise<LeadItem> {
+    const token = (dto.token ?? '').trim();
+    if (!token) throw new BadRequestException('Токен сайта обязателен');
+    const site = await this.siteService.findByToken(token);
+    if (!site) throw new BadRequestException('Неверный токен сайта');
+    const department = await this.departmentService.findById(site.departmentId);
+    if (!department) throw new NotFoundException('Отдел не найден');
+    const managerId = department.managerId;
+    if (!managerId) throw new BadRequestException('У отдела сайта не назначен руководитель. Невозможно создать лид.');
+
+    const extra: Record<string, unknown> = { ...(dto.sourceMeta?.extra ?? {}) };
+    if (dto.additionalInfo?.trim()) extra.additionalInfo = dto.additionalInfo.trim();
+
+    const sourceMeta: LeadSourceMetaItem = {
+      ip: (requestMeta.ip ?? dto.sourceMeta?.ip ?? '').toString().trim() || undefined,
+      userAgent: (requestMeta.userAgent ?? dto.sourceMeta?.userAgent ?? '').toString().trim() || undefined,
+      referrer: (requestMeta.referrer ?? dto.sourceMeta?.referrer ?? '').toString().trim() || undefined,
+      screen: (dto.sourceMeta?.screen ?? '').toString().trim() || undefined,
+      language: (dto.sourceMeta?.language ?? '').toString().trim() || undefined,
+      platform: (dto.sourceMeta?.platform ?? '').toString().trim() || undefined,
+      timezone: (dto.sourceMeta?.timezone ?? '').toString().trim() || undefined,
+      deviceMemory: (dto.sourceMeta?.deviceMemory ?? '').toString().trim() || undefined,
+      hardwareConcurrency: (dto.sourceMeta?.hardwareConcurrency ?? '').toString().trim() || undefined,
+      extra: Object.keys(extra).length > 0 ? extra : undefined,
+    };
+    const hasMeta = Object.entries(sourceMeta).some(([k, v]) => k !== 'extra' && v != null && v !== '');
+
+    return this.create(
+      {
+        name: dto.name.trim(),
+        phone: (dto.phone ?? '').trim() || undefined,
+        email: (dto.email ?? '').trim().toLowerCase() || undefined,
+        departmentId: site.departmentId,
+        source: 'site',
+        siteId: site._id,
+        sourceMeta: hasMeta || sourceMeta.extra ? sourceMeta : undefined,
+      },
+      managerId,
+      'manager',
+    );
+  }
+
   async bulkCreate(
     departmentId: string,
     items: { name: string; phone: string; email?: string }[],
@@ -388,6 +443,7 @@ export class LeadService {
       email?: string;
       statusId?: string;
       assignedTo?: string;
+      unassignedOnly?: boolean;
       dateFrom?: string;
       dateTo?: string;
     },
@@ -398,9 +454,12 @@ export class LeadService {
 
     const query: Record<string, unknown> = { departmentId: new Types.ObjectId(departmentId) };
 
-    // Сотрудник видит только лиды, назначенные на него. Руководитель, админ, супер — всех.
+    // Сотрудник видит только лиды, назначенные на него.
+    // Руководитель/админ/супер: «Все лиды» без фильтра = только неназначенные (unassignedOnly); с фильтром «Обрабатывает» = лиды этого исполнителя.
     if (userRole === 'employee') {
       query.assignedTo = new Types.ObjectId(userId);
+    } else if (filters?.unassignedOnly) {
+      query.assignedTo = [];
     }
 
     if (filters?.name?.trim()) {
@@ -415,7 +474,7 @@ export class LeadService {
     if (filters?.statusId?.trim()) {
       query.statusId = new Types.ObjectId(filters.statusId.trim());
     }
-    if (filters?.assignedTo?.trim() && userRole !== 'employee') {
+    if (filters?.assignedTo?.trim() && userRole !== 'employee' && !filters?.unassignedOnly) {
       query.assignedTo = new Types.ObjectId(filters.assignedTo.trim());
     }
     if (filters?.dateFrom?.trim() || filters?.dateTo?.trim()) {

@@ -85,6 +85,13 @@ export class SiteService {
     return this.toItem(doc);
   }
 
+  async findByToken(token: string): Promise<SiteItem | null> {
+    if (!token?.trim()) return null;
+    const doc = await this.siteModel.findOne({ token: token.trim() }).lean().exec();
+    if (!doc) return null;
+    return this.toItem(doc);
+  }
+
   async update(
     id: string,
     dto: { url?: string; description?: string },

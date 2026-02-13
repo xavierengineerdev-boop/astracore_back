@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Site, SiteSchema } from './site.schema';
 import { SiteService } from './site.service';
 import { SiteController } from './site.controller';
+import { SiteWidgetController } from './site-widget.controller';
 import { DepartmentModule } from '../department/department.module';
 import { UserModule } from '../user/user.module';
 
@@ -12,7 +13,7 @@ import { UserModule } from '../user/user.module';
     DepartmentModule,
     forwardRef(() => UserModule),
   ],
-  controllers: [SiteController],
+  controllers: [SiteWidgetController, SiteController],
   providers: [SiteService],
   exports: [SiteService],
 })

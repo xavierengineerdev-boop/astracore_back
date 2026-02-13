@@ -116,6 +116,7 @@ export class LeadController {
     @Query('email') email?: string,
     @Query('statusId') statusId?: string,
     @Query('assignedTo') assignedTo?: string,
+    @Query('unassignedOnly') unassignedOnly?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('sortBy') sortBy?: string,
@@ -124,9 +125,10 @@ export class LeadController {
     if (!departmentId?.trim()) throw new ForbiddenException('departmentId is required');
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '50', 10) || 50));
+    const unassignedOnlyBool = unassignedOnly === 'true' || unassignedOnly === '1';
     const filters =
-      name || phone || email || statusId || assignedTo || dateFrom || dateTo
-        ? { name, phone, email, statusId, assignedTo, dateFrom, dateTo }
+      name || phone || email || statusId || assignedTo || unassignedOnlyBool || dateFrom || dateTo
+        ? { name, phone, email, statusId, assignedTo, unassignedOnly: unassignedOnlyBool, dateFrom, dateTo }
         : undefined;
     const sort =
       sortBy || sortOrder

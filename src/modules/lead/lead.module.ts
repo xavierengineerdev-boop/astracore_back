@@ -8,9 +8,11 @@ import { LeadTask, LeadTaskSchema } from './lead-task.schema';
 import { LeadReminder, LeadReminderSchema } from './lead-reminder.schema';
 import { LeadService } from './lead.service';
 import { LeadController } from './lead.controller';
+import { PublicLeadController } from './public-lead.controller';
 import { DepartmentModule } from '../department/department.module';
 import { UserModule } from '../user/user.module';
 import { StatusModule } from '../status/status.module';
+import { SiteModule } from '../site/site.module';
 
 @Module({
   imports: [
@@ -25,8 +27,9 @@ import { StatusModule } from '../status/status.module';
     DepartmentModule,
     forwardRef(() => UserModule),
     StatusModule,
+    SiteModule,
   ],
-  controllers: [LeadController],
+  controllers: [LeadController, PublicLeadController],
   providers: [LeadService],
   exports: [LeadService],
 })
