@@ -47,7 +47,7 @@ export class SiteController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List sites by department' })
+  @ApiOperation({ summary: 'List sites by department. Сайты привязаны к отделу — каждый отдел видит только свои.' })
   @ApiResponse({ status: 200, description: 'List of sites' })
   async findAll(@Req() req: ReqUser, @Query('departmentId') departmentId: string) {
     if (!departmentId?.trim()) throw new ForbiddenException('departmentId is required');

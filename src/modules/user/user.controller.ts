@@ -66,7 +66,7 @@ export class UserController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List users (super/admin: all; manager: only own department)' })
+  @ApiOperation({ summary: 'List users. Сотрудники привязаны к отделу — супер/админ: все; руководитель: только свой отдел.' })
   @ApiResponse({ status: 200, description: 'List of users' })
   async findAll(@Req() req: { user: { userId: string; role: string } }) {
     const role = req.user.role as UserRole;

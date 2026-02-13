@@ -46,7 +46,7 @@ export class DepartmentController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List departments (super/admin: all; manager: only managed)' })
+  @ApiOperation({ summary: 'List departments (super/admin: all; manager/employee: only own)' })
   @ApiResponse({ status: 200, description: 'List of departments' })
   async findAll(@Req() req: { user: { userId: string; role: string } }) {
     if (ROLES_CAN_VIEW.includes(req.user.role as UserRole)) {
@@ -54,6 +54,21 @@ export class DepartmentController {
     }
     if (req.user.role === 'manager') {
       return this.departmentService.findByManagerId(req.user.userId);
+    }
+    if (req.user.role === 'employee') {
+      const profile = await this.userService.findById(req.user.userId);
+      if (!profile?.departmentId) return [];
+      const dept = await this.departmentService.findById(profile.departmentId);
+      if (!dept) return [];
+      return [
+        {
+          _id: dept._id,
+          name: dept.name,
+          managerId: dept.managerId,
+          createdAt: dept.createdAt,
+          updatedAt: dept.updatedAt,
+        },
+      ];
     }
     throw new ForbiddenException('Access denied');
   }

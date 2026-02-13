@@ -48,7 +48,7 @@ export class StatusController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List statuses by department (super, admin, or dept manager)' })
+  @ApiOperation({ summary: 'List statuses by department. Статусы привязаны к отделу — каждый отдел видит только свои.' })
   @ApiResponse({ status: 200, description: 'List of statuses' })
   async findAll(@Req() req: ReqUser, @Query('departmentId') departmentId: string) {
     if (!departmentId?.trim()) throw new ForbiddenException('departmentId is required');

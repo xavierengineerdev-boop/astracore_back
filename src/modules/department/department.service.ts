@@ -78,8 +78,7 @@ export class DepartmentService {
         // ignore
       }
     }
-    const allUsers = await this.userService.findAll();
-    const employees = allUsers.filter((u) => u.departmentId === id);
+    const employees = await this.userService.findByDepartment(id);
     const [statusesCount, sitesCount] = await Promise.all([
       this.statusModel.countDocuments({ departmentId: new Types.ObjectId(id) }).exec(),
       this.siteModel.countDocuments({ departmentId: new Types.ObjectId(id) }).exec(),
