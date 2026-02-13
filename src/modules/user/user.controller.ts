@@ -66,14 +66,21 @@ export class UserController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all users (super, admin)' })
+  @ApiOperation({ summary: 'List users (super/admin: all; manager: only own department)' })
   @ApiResponse({ status: 200, description: 'List of users' })
-  async findAll(@Req() req: { user: { role: string } }) {
+  async findAll(@Req() req: { user: { userId: string; role: string } }) {
     const role = req.user.role as UserRole;
-    if (!ROLES_CAN_LIST.includes(role)) {
-      throw new ForbiddenException('Only super and admin can list users');
+    if (role === 'super' || role === 'admin') {
+      return this.userService.findAll();
     }
-    return this.userService.findAll();
+    if (role === 'manager') {
+      const manager = await this.userService.findById(req.user.userId);
+      if (!manager?.departmentId) {
+        throw new ForbiddenException('Руководитель должен быть привязан к отделу');
+      }
+      return this.userService.findByDepartment(manager.departmentId);
+    }
+    throw new ForbiddenException('Access denied');
   }
 
   @Get(':id/leads')
@@ -122,18 +129,32 @@ export class UserController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get user by ID (super, admin or own profile)' })
+  @ApiOperation({ summary: 'Get user by ID (super, admin, manager of dept, or own profile)' })
   @ApiResponse({ status: 200, description: 'User' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Req() req: { user: { userId: string; role: string } }, @Param('id') id: string) {
     const isOwn = String(req.user.userId) === String(id);
-    const canList = ROLES_CAN_LIST.includes(req.user.role as UserRole);
-    if (!canList && !isOwn) {
-      throw new ForbiddenException('Only super and admin can view other users');
+    const role = req.user.role as UserRole;
+    if (isOwn) {
+      const user = await this.userService.findById(id);
+      if (!user) throw new NotFoundException('User not found');
+      return user;
     }
-    const user = await this.userService.findById(id);
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+    if (role === 'super' || role === 'admin') {
+      const user = await this.userService.findById(id);
+      if (!user) throw new NotFoundException('User not found');
+      return user;
+    }
+    if (role === 'manager') {
+      const target = await this.userService.findById(id);
+      if (!target) throw new NotFoundException('User not found');
+      const manager = await this.userService.findById(req.user.userId);
+      if (!manager?.departmentId || String(target.departmentId) !== String(manager.departmentId)) {
+        throw new ForbiddenException('Доступ только к пользователям своего отдела');
+      }
+      return target;
+    }
+    throw new ForbiddenException('Access denied');
   }
 
   @Patch(':id')
@@ -162,12 +183,34 @@ export class UserController {
       });
     }
 
-    if (!ROLES_CAN_LIST.includes(creatorRole)) {
-      throw new ForbiddenException('Only super and admin can update other users');
-    }
     const target = await this.userService.findById(id);
     if (!target) throw new NotFoundException('User not found');
     const targetRole = target.role as UserRole;
+
+    if (creatorRole === 'manager') {
+      const manager = await this.userService.findById(req.user.userId);
+      if (!manager?.departmentId || String(target.departmentId) !== String(manager.departmentId)) {
+        throw new ForbiddenException('Можно редактировать только сотрудников своего отдела');
+      }
+      if (targetRole !== 'employee') {
+        throw new ForbiddenException('Руководитель может редактировать только сотрудников (employee)');
+      }
+      if (dto.role !== undefined && dto.role !== 'employee') {
+        throw new ForbiddenException('Руководитель может создавать только сотрудников');
+      }
+      return this.userService.update(id, {
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        isActive: dto.isActive,
+        departmentId: dto.departmentId !== undefined ? (dto.departmentId || undefined) : target.departmentId,
+      });
+    }
+
+    if (!ROLES_CAN_LIST.includes(creatorRole)) {
+      throw new ForbiddenException('Only super and admin can update other users');
+    }
     if (creatorRole === 'admin' && (targetRole === 'super' || targetRole === 'admin')) {
       throw new ForbiddenException('You can only edit users with a lower rank (manager, employee)');
     }
@@ -186,7 +229,7 @@ export class UserController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete user (by hierarchy: no self-delete, admin only lower ranks)' })
+  @ApiOperation({ summary: 'Delete user (super/admin by hierarchy; manager — only employees of own dept)' })
   @ApiResponse({ status: 200, description: 'User deleted' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async remove(
@@ -198,12 +241,25 @@ export class UserController {
       throw new ForbiddenException('You cannot delete yourself');
     }
     const creatorRole = req.user.role as UserRole;
-    if (!ROLES_CAN_LIST.includes(creatorRole)) {
-      throw new ForbiddenException('Only super and admin can delete users');
-    }
     const target = await this.userService.findById(id);
     if (!target) throw new NotFoundException('User not found');
     const targetRole = target.role as UserRole;
+
+    if (creatorRole === 'manager') {
+      const manager = await this.userService.findById(req.user.userId);
+      if (!manager?.departmentId || String(target.departmentId) !== String(manager.departmentId)) {
+        throw new ForbiddenException('Можно удалять только сотрудников своего отдела');
+      }
+      if (targetRole !== 'employee') {
+        throw new ForbiddenException('Руководитель может удалять только сотрудников (employee)');
+      }
+      await this.userService.delete(id);
+      return { message: 'User deleted' };
+    }
+
+    if (!ROLES_CAN_LIST.includes(creatorRole)) {
+      throw new ForbiddenException('Only super and admin can delete users');
+    }
     if (creatorRole === 'admin' && (targetRole === 'super' || targetRole === 'admin')) {
       throw new ForbiddenException('You can only delete users with a lower rank (manager, employee)');
     }

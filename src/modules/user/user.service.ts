@@ -109,6 +109,16 @@ export class UserService {
     return users.map((u: any) => this.toUserItem(u));
   }
 
+  /** Пользователи отдела (для руководителя — только свой отдел). */
+  async findByDepartment(departmentId: string): Promise<UserItem[]> {
+    const users = await this.userModel
+      .find({ departmentId: new Types.ObjectId(departmentId) })
+      .select('-password')
+      .lean()
+      .exec();
+    return users.map((u: any) => this.toUserItem(u));
+  }
+
   async findById(id: string): Promise<UserItem | null> {
     const user = await this.userModel.findById(id).select('-password').lean().exec();
     return user ? this.toUserItem(user) : null;
