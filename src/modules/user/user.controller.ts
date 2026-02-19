@@ -96,6 +96,8 @@ export class UserController {
     @Query('email') email?: string,
     @Query('statusId') statusId?: string,
     @Query('departmentId') departmentId?: string,
+    @Query('lastCommentDateFrom') lastCommentDateFrom?: string,
+    @Query('lastCommentDateTo') lastCommentDateTo?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
   ): Promise<LeadListResult> {
@@ -106,7 +108,9 @@ export class UserController {
     if (!target) throw new NotFoundException('User not found');
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '25', 10) || 25));
-    const filters = name || phone || email || statusId || departmentId ? { name, phone, email, statusId, departmentId } : undefined;
+    const filters = name || phone || email || statusId || departmentId || lastCommentDateFrom || lastCommentDateTo
+      ? { name, phone, email, statusId, departmentId, lastCommentDateFrom, lastCommentDateTo }
+      : undefined;
     const sort = sortBy || sortOrder ? { sortBy, sortOrder: (sortOrder as 'asc' | 'desc') || 'desc' } : undefined;
     return this.leadService.findLeadsAssignedToUser(id, req.user.userId, req.user.role, skipNum, limitNum, filters, sort);
   }

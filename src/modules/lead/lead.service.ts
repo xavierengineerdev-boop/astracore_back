@@ -1198,7 +1198,15 @@ export class LeadService {
     currentUserRole: string,
     skip: number = 0,
     limit: number = 50,
-    filters?: { name?: string; phone?: string; email?: string; statusId?: string; departmentId?: string },
+    filters?: {
+      name?: string;
+      phone?: string;
+      email?: string;
+      statusId?: string;
+      departmentId?: string;
+      lastCommentDateFrom?: string;
+      lastCommentDateTo?: string;
+    },
     sort?: { sortBy?: string; sortOrder?: 'asc' | 'desc' },
   ): Promise<LeadListResult> {
     const deptIds = await this.getAllowedDepartmentIds(currentUserId, currentUserRole);
@@ -1216,6 +1224,27 @@ export class LeadService {
     if (filters?.statusId?.trim()) query.statusId = new Types.ObjectId(filters.statusId.trim());
     if (filters?.departmentId?.trim()) query.departmentId = new Types.ObjectId(filters.departmentId.trim());
 
+    // Фильтр по дате последнего комментария (когда звонили): только лиды, у которых последний комментарий в диапазоне
+    if (filters?.lastCommentDateFrom?.trim() || filters?.lastCommentDateTo?.trim()) {
+      const fromStr = filters.lastCommentDateFrom?.trim();
+      const toStr = filters.lastCommentDateTo?.trim();
+      const from = fromStr ? new Date(fromStr) : null;
+      const to = toStr ? new Date(toStr) : null;
+      const lastCommentAgg = await this.leadCommentModel
+        .aggregate<{ _id: Types.ObjectId; lastCommentAt: Date }>([
+          { $group: { _id: '$leadId', lastCommentAt: { $max: '$createdAt' } } },
+          ...(from || to
+            ? [{ $match: { lastCommentAt: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } } }]
+            : []),
+        ])
+        .exec();
+      const leadIdsInRange = lastCommentAgg.map((r) => r._id);
+      if (leadIdsInRange.length === 0) {
+        return { items: [], total: 0, skip, limit };
+      }
+      (query as any)._id = { $in: leadIdsInRange };
+    }
+
     const sortBy = sort?.sortBy?.trim() || 'createdAt';
     const sortOrder = sort?.sortOrder === 'asc' ? 1 : -1;
     const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'updatedAt', 'statusId'];
@@ -1227,6 +1256,22 @@ export class LeadService {
       this.leadModel.countDocuments(query).exec(),
     ]);
     const items = rawItems.map((d: any) => this.toItem(d));
+    const leadIds = items.map((i) => new Types.ObjectId(i._id));
+
+    // Дата последнего комментария по каждому лиду
+    const lastCommentMap = new Map<string, string>();
+    if (leadIds.length > 0) {
+      const agg = await this.leadCommentModel
+        .aggregate<{ _id: Types.ObjectId; lastCommentAt: Date }>([
+          { $match: { leadId: { $in: leadIds } } },
+          { $group: { _id: '$leadId', lastCommentAt: { $max: '$createdAt' } } },
+        ])
+        .exec();
+      agg.forEach((r) => {
+        lastCommentMap.set(String(r._id), r.lastCommentAt ? new Date(r.lastCommentAt).toISOString() : '');
+      });
+    }
+
     const deptIdsUnique = [...new Set(items.map((i) => i.departmentId))];
     const statusIdsUnique = [...new Set(items.map((i) => i.statusId).filter((id): id is string => Boolean(id)))];
     const [deptList, statusLists] = await Promise.all([
@@ -1239,6 +1284,7 @@ export class LeadService {
       ...i,
       statusName: i.statusId ? statusNames.get(i.statusId) ?? 'Без статуса' : 'Без статуса',
       departmentName: deptNames.get(i.departmentId) ?? '',
+      lastCommentAt: lastCommentMap.get(i._id) ?? undefined,
     }));
     return { items: itemsWithMeta, total, skip, limit };
   }

@@ -6,8 +6,9 @@ import { StatusModule } from './status/status.module';
 import { SiteModule } from './site/site.module';
 import { LeadModule } from './lead/lead.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { TaskModule } from './task/task.module';
 
-export const modules = [HealthModule, UserModule, AuthModule, DepartmentModule, StatusModule, SiteModule, LeadModule, DashboardModule];
+export const modules = [HealthModule, UserModule, AuthModule, DepartmentModule, StatusModule, SiteModule, LeadModule, DashboardModule, TaskModule];
 export { HealthModule } from './health/health.module';
 export { UserModule } from './user/user.module';
 export { AuthModule } from './auth/auth.module';
@@ -16,3 +17,4 @@ export { StatusModule } from './status/status.module';
 export { SiteModule } from './site/site.module';
 export { LeadModule } from './lead/lead.module';
 export { DashboardModule } from './dashboard/dashboard.module';
+export { TaskModule } from './task/task.module';
