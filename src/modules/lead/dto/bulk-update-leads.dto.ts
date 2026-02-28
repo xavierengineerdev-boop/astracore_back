@@ -18,4 +18,9 @@ export class BulkUpdateLeadsDto {
   @IsArray()
   @IsString({ each: true })
   assignedTo?: string[];
+
+  @ApiPropertyOptional({ description: 'Set lead source tag (источник) for all selected leads' })
+  @IsOptional()
+  @IsString()
+  leadTagId?: string | null;
 }

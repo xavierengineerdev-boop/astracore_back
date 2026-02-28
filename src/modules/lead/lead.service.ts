@@ -37,9 +37,12 @@ export type LeadItem = {
   statusId: string | null;
   source: string;
   siteId: string | null;
+  /** ID тега источника лида (откуда пришёл лид) */
+  leadTagId: string | null;
   sourceMeta?: LeadSourceMetaItem;
   createdBy: string;
   assignedTo: string[];
+  comment: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -226,6 +229,7 @@ export class LeadService {
       siteId?: string;
       sourceMeta?: LeadSourceMetaItem;
       assignedTo?: string[];
+      leadTagId?: string | null;
     },
     userId: string,
     userRole: string,
@@ -285,6 +289,7 @@ export class LeadService {
       comment: '',
       source: (dto.source ?? 'manual').trim() || 'manual',
       siteId: dto.siteId ? new Types.ObjectId(dto.siteId) : null,
+      leadTagId: dto.leadTagId ? new Types.ObjectId(dto.leadTagId) : null,
       sourceMeta: sourceMeta && Object.values(sourceMeta).some((v) => v !== undefined && v !== null) ? sourceMeta : undefined,
       createdBy: new Types.ObjectId(userId),
       assignedTo: assignedToIds.map((id) => new Types.ObjectId(id)),
@@ -441,8 +446,10 @@ export class LeadService {
       name?: string;
       phone?: string;
       email?: string;
+      search?: string;
       statusId?: string;
       assignedTo?: string;
+      leadTagId?: string;
       unassignedOnly?: boolean;
       dateFrom?: string;
       dateTo?: string;
@@ -462,20 +469,35 @@ export class LeadService {
       query.assignedTo = [];
     }
 
-    if (filters?.name?.trim()) {
-      query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
-    }
-    if (filters?.phone?.trim()) {
-      query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
-    }
-    if (filters?.email?.trim()) {
-      query.email = new RegExp(this.escapeRegex(filters.email.trim()), 'i');
+    if (filters?.search?.trim()) {
+      const re = new RegExp(this.escapeRegex(filters.search.trim()), 'i');
+      (query as any).$or = [
+        { name: re },
+        { lastName: re },
+        { phone: re },
+        { phone2: re },
+        { email: re },
+        { email2: re },
+      ];
+    } else {
+      if (filters?.name?.trim()) {
+        query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
+      }
+      if (filters?.phone?.trim()) {
+        query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
+      }
+      if (filters?.email?.trim()) {
+        query.email = new RegExp(this.escapeRegex(filters.email.trim()), 'i');
+      }
     }
     if (filters?.statusId?.trim()) {
       query.statusId = new Types.ObjectId(filters.statusId.trim());
     }
     if (filters?.assignedTo?.trim() && userRole !== 'employee' && !filters?.unassignedOnly) {
       query.assignedTo = new Types.ObjectId(filters.assignedTo.trim());
+    }
+    if (filters?.leadTagId?.trim()) {
+      query.leadTagId = new Types.ObjectId(filters.leadTagId.trim());
     }
     if (filters?.dateFrom?.trim() || filters?.dateTo?.trim()) {
       const from = filters.dateFrom?.trim()
@@ -503,7 +525,7 @@ export class LeadService {
         .find(query)
         .sort(sortOpt as any)
         .skip(skip)
-        .limit(Math.min(limit, 100))
+        .limit(Math.min(limit, 1000))
         .lean()
         .exec(),
       this.leadModel.countDocuments(query).exec(),
@@ -532,7 +554,7 @@ export class LeadService {
 
   async update(
     id: string,
-    dto: { name?: string; lastName?: string; phone?: string; phone2?: string; email?: string; email2?: string; statusId?: string; assignedTo?: string[] },
+    dto: { name?: string; lastName?: string; phone?: string; phone2?: string; email?: string; email2?: string; statusId?: string; assignedTo?: string[]; comment?: string; leadTagId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<LeadItem> {
@@ -598,6 +620,8 @@ export class LeadService {
     if (dto.name !== undefined) doc.name = dto.name.trim();
     if (dto.lastName !== undefined) doc.lastName = (dto.lastName ?? '').trim();
     if (dto.statusId !== undefined) doc.statusId = dto.statusId ? (new Types.ObjectId(dto.statusId) as any) : null;
+    if (dto.comment !== undefined) doc.comment = (dto.comment ?? '').trim();
+    if (dto.leadTagId !== undefined) doc.leadTagId = dto.leadTagId ? (new Types.ObjectId(dto.leadTagId) as any) : null;
     await doc.save();
     const updatedItem = this.toItem(doc.toObject ? doc.toObject() : (doc as any));
     const newAssignedTo = updatedItem.assignedTo;
@@ -615,6 +639,7 @@ export class LeadService {
     if (dto.phone2 !== undefined) otherUpdates.phone2 = updatedItem.phone2;
     if (dto.email !== undefined) otherUpdates.email = updatedItem.email;
     if (dto.email2 !== undefined) otherUpdates.email2 = updatedItem.email2;
+    if (dto.comment !== undefined) otherUpdates.comment = updatedItem.comment ?? '';
     if (Object.keys(otherUpdates).length > 0) {
       await this.addHistory(id, 'updated', userId, otherUpdates);
     }
@@ -623,7 +648,7 @@ export class LeadService {
 
   async bulkUpdate(
     leadIds: string[],
-    dto: { statusId?: string; assignedTo?: string[] },
+    dto: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<{ updated: number }> {
@@ -1252,7 +1277,7 @@ export class LeadService {
     const sortOpt = { [sortField]: sortOrder };
 
     const [rawItems, total] = await Promise.all([
-      this.leadModel.find(query).sort(sortOpt as any).skip(skip).limit(Math.min(limit, 100)).lean().exec(),
+      this.leadModel.find(query).sort(sortOpt as any).skip(skip).limit(Math.min(limit, 1000)).lean().exec(),
       this.leadModel.countDocuments(query).exec(),
     ]);
     const items = rawItems.map((d: any) => this.toItem(d));
@@ -1443,9 +1468,11 @@ export class LeadService {
       statusId: d.statusId ? String(d.statusId) : null,
       source: d.source ?? 'manual',
       siteId: d.siteId ? String(d.siteId) : null,
+      leadTagId: d.leadTagId ? String(d.leadTagId) : null,
       sourceMeta: sourceMeta && Object.values(sourceMeta).some((v) => v !== undefined && v !== null) ? sourceMeta : undefined,
       createdBy: String(d.createdBy),
       assignedTo: (d.assignedTo || []).map((id: any) => String(id)),
+      comment: d.comment ?? '',
       createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : '',
       updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : '',
     };

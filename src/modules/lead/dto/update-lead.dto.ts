@@ -42,4 +42,14 @@ export class UpdateLeadDto {
   @IsArray()
   @IsString({ each: true })
   assignedTo?: string[];
+
+  @ApiPropertyOptional({ description: 'Краткий комментарий по лиду (отображается в таблице)' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
+
+  @ApiPropertyOptional({ description: 'Lead tag ID (источник/база лида)' })
+  @IsOptional()
+  @IsString()
+  leadTagId?: string;
 }

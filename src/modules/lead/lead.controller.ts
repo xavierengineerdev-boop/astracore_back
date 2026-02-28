@@ -52,6 +52,7 @@ export class LeadController {
         siteId: dto.siteId?.trim(),
         sourceMeta: dto.sourceMeta,
         assignedTo: dto.assignedTo,
+        leadTagId: dto.leadTagId !== undefined ? (dto.leadTagId?.trim() || null) : undefined,
       },
       req.user.userId,
       req.user.role as UserRole,
@@ -79,14 +80,15 @@ export class LeadController {
   @ApiBody({ type: BulkUpdateLeadsDto })
   @ApiResponse({ status: 200, description: 'Number of leads updated' })
   async bulkUpdate(@Req() req: ReqUser, @Body() dto: BulkUpdateLeadsDto) {
-    if (req.user.role !== 'super' && req.user.role !== 'manager') {
-      throw new ForbiddenException('Массовое изменение доступно только руководителю отдела');
+    if (req.user.role !== 'super' && req.user.role !== 'admin' && req.user.role !== 'manager') {
+      throw new ForbiddenException('Массовое изменение доступно только руководителю, админу и суперпользователю');
     }
     const leadIds = (dto.leadIds || []).filter((id) => id?.trim()).map((id) => id.trim());
     if (leadIds.length === 0) return { updated: 0 };
-    const payload: { statusId?: string; assignedTo?: string[] } = {};
+    const payload: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null } = {};
     if (dto.statusId !== undefined) payload.statusId = dto.statusId?.trim() ?? '';
     if (dto.assignedTo !== undefined) payload.assignedTo = dto.assignedTo;
+    if (dto.leadTagId !== undefined) payload.leadTagId = dto.leadTagId && String(dto.leadTagId).trim() ? String(dto.leadTagId).trim() : null;
     return this.leadService.bulkUpdate(leadIds, payload, req.user.userId, req.user.role as UserRole);
   }
 
@@ -114,8 +116,10 @@ export class LeadController {
     @Query('name') name?: string,
     @Query('phone') phone?: string,
     @Query('email') email?: string,
+    @Query('search') search?: string,
     @Query('statusId') statusId?: string,
     @Query('assignedTo') assignedTo?: string,
+    @Query('leadTagId') leadTagId?: string,
     @Query('unassignedOnly') unassignedOnly?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
@@ -124,11 +128,11 @@ export class LeadController {
   ) {
     if (!departmentId?.trim()) throw new ForbiddenException('departmentId is required');
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '50', 10) || 50));
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit ?? '50', 10) || 50));
     const unassignedOnlyBool = unassignedOnly === 'true' || unassignedOnly === '1';
     const filters =
-      name || phone || email || statusId || assignedTo || unassignedOnlyBool || dateFrom || dateTo
-        ? { name, phone, email, statusId, assignedTo, unassignedOnly: unassignedOnlyBool, dateFrom, dateTo }
+      name || phone || email || search || statusId || assignedTo || leadTagId?.trim() || unassignedOnlyBool || dateFrom || dateTo
+        ? { name, phone, email, search, statusId, assignedTo, leadTagId: leadTagId?.trim(), unassignedOnly: unassignedOnlyBool, dateFrom, dateTo }
         : undefined;
     const sort =
       sortBy || sortOrder
@@ -367,6 +371,8 @@ export class LeadController {
         email2: dto.email2?.trim(),
         statusId: dto.statusId?.trim(),
         assignedTo: dto.assignedTo,
+        comment: dto.comment !== undefined ? (dto.comment ?? '').trim() : undefined,
+        leadTagId: dto.leadTagId !== undefined ? (dto.leadTagId?.trim() || null) : undefined,
       },
       req.user.userId,
       req.user.role as UserRole,

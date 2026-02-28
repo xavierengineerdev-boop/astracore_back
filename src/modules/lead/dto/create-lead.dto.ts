@@ -105,6 +105,11 @@ export class CreateLeadDto {
   @IsString()
   siteId?: string;
 
+  @ApiPropertyOptional({ description: 'Lead tag ID (источник/база лида). Тег создаётся в карточке отдела.' })
+  @IsOptional()
+  @IsString()
+  leadTagId?: string;
+
   @ApiPropertyOptional({ description: 'Метаданные запроса (IP, userAgent, железо — при создании с сайта)' })
   @IsOptional()
   @ValidateNested()

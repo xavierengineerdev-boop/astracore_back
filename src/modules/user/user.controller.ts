@@ -107,7 +107,7 @@ export class UserController {
     const target = await this.userService.findById(id);
     if (!target) throw new NotFoundException('User not found');
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '25', 10) || 25));
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit ?? '25', 10) || 25));
     const filters = name || phone || email || statusId || departmentId || lastCommentDateFrom || lastCommentDateTo
       ? { name, phone, email, statusId, departmentId, lastCommentDateFrom, lastCommentDateTo }
       : undefined;

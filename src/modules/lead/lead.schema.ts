@@ -74,6 +74,10 @@ export class Lead {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Site', default: null })
   siteId: MongooseSchema.Types.ObjectId | null;
 
+  /** Тег лида / источник-база (например ВК, импорт). Задаётся суперадмином, админом или руководителем в карточке отдела. */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'LeadTag', default: null })
+  leadTagId: MongooseSchema.Types.ObjectId | null;
+
   @Prop({ type: LeadSourceMetaSchema, default: undefined })
   sourceMeta?: LeadSourceMeta;
 
