@@ -23,4 +23,9 @@ export class BulkUpdateLeadsDto {
   @IsOptional()
   @IsString()
   leadTagId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Set closer (ответственный за закрытие) for all selected leads' })
+  @IsOptional()
+  @IsString()
+  closerId?: string | null;
 }

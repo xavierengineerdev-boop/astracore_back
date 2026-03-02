@@ -121,4 +121,9 @@ export class CreateLeadDto {
   @IsArray()
   @IsString({ each: true })
   assignedTo?: string[];
+
+  @ApiPropertyOptional({ description: 'User ID of the closer (ответственный за закрытие). Department manager or employee only.' })
+  @IsOptional()
+  @IsString()
+  closerId?: string | null;
 }

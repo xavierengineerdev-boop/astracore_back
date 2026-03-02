@@ -42,6 +42,8 @@ export type LeadItem = {
   sourceMeta?: LeadSourceMetaItem;
   createdBy: string;
   assignedTo: string[];
+  /** Ответственный за закрытие (клоузер) */
+  closerId: string | null;
   comment: string;
   createdAt: string;
   updatedAt: string;
@@ -230,6 +232,7 @@ export class LeadService {
       sourceMeta?: LeadSourceMetaItem;
       assignedTo?: string[];
       leadTagId?: string | null;
+      closerId?: string | null;
     },
     userId: string,
     userRole: string,
@@ -243,6 +246,10 @@ export class LeadService {
     const assignedToIds = (dto.assignedTo ?? []).filter((id) => id && allowedAssignees.has(String(id)));
     if ((dto.assignedTo ?? []).length > 0 && assignedToIds.length !== (dto.assignedTo ?? []).length) {
       throw new BadRequestException('Назначить можно только сотрудников или руководителя отдела');
+    }
+    const closerId = dto.closerId?.trim() || null;
+    if (closerId && !allowedAssignees.has(closerId)) {
+      throw new BadRequestException('Клоузером можно назначить только сотрудника или руководителя отдела');
     }
 
     const phone = (dto.phone ?? '').trim();
@@ -293,6 +300,7 @@ export class LeadService {
       sourceMeta: sourceMeta && Object.values(sourceMeta).some((v) => v !== undefined && v !== null) ? sourceMeta : undefined,
       createdBy: new Types.ObjectId(userId),
       assignedTo: assignedToIds.map((id) => new Types.ObjectId(id)),
+      closerId: closerId ? new Types.ObjectId(closerId) : null,
     });
     const item = this.toItem(doc.toObject ? doc.toObject() : (doc as any));
     await this.addHistory(item._id, 'created', userId, {
@@ -470,12 +478,15 @@ export class LeadService {
     }
 
     if (filters?.search?.trim()) {
-      const re = new RegExp(this.escapeRegex(filters.search.trim()), 'i');
+      const term = filters.search.trim();
+      const re = new RegExp(this.escapeRegex(term), 'i');
+      const digitsOnly = term.replace(/\D/g, '');
+      const phoneRe = digitsOnly.length > 0 ? new RegExp(digitsOnly, 'i') : re;
       (query as any).$or = [
         { name: re },
         { lastName: re },
-        { phone: re },
-        { phone2: re },
+        { $or: [{ phone: re }, { phone: phoneRe }] },
+        { $or: [{ phone2: re }, { phone2: phoneRe }] },
         { email: re },
         { email2: re },
       ];
@@ -554,7 +565,7 @@ export class LeadService {
 
   async update(
     id: string,
-    dto: { name?: string; lastName?: string; phone?: string; phone2?: string; email?: string; email2?: string; statusId?: string; assignedTo?: string[]; comment?: string; leadTagId?: string | null },
+    dto: { name?: string; lastName?: string; phone?: string; phone2?: string; email?: string; email2?: string; statusId?: string; assignedTo?: string[]; comment?: string; leadTagId?: string | null; closerId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<LeadItem> {
@@ -583,6 +594,16 @@ export class LeadService {
         throw new BadRequestException('Назначить можно только сотрудников или руководителя отдела');
       }
       doc.assignedTo = assignedToIds.map((id) => new Types.ObjectId(id) as any);
+    }
+    if (dto.closerId !== undefined) {
+      const department = await this.departmentService.findById(item.departmentId);
+      if (!department) throw new NotFoundException('Department not found');
+      const allowedAssignees = this.getAllowedAssigneeIds(department);
+      const newCloserId = dto.closerId?.trim() || null;
+      if (newCloserId && !allowedAssignees.has(newCloserId)) {
+        throw new BadRequestException('Клоузером можно назначить только сотрудника или руководителя отдела');
+      }
+      doc.closerId = newCloserId ? (new Types.ObjectId(newCloserId) as any) : null;
     }
     const canChangePhone =
       userRole === 'super' || userRole === 'admin' || (await this.canManageDepartment(item.departmentId, userId, userRole));
@@ -648,7 +669,7 @@ export class LeadService {
 
   async bulkUpdate(
     leadIds: string[],
-    dto: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null },
+    dto: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null; closerId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<{ updated: number }> {
@@ -1472,6 +1493,7 @@ export class LeadService {
       sourceMeta: sourceMeta && Object.values(sourceMeta).some((v) => v !== undefined && v !== null) ? sourceMeta : undefined,
       createdBy: String(d.createdBy),
       assignedTo: (d.assignedTo || []).map((id: any) => String(id)),
+      closerId: d.closerId ? String(d.closerId) : null,
       comment: d.comment ?? '',
       createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : '',
       updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : '',

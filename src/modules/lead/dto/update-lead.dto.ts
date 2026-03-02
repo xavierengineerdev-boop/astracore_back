@@ -52,4 +52,9 @@ export class UpdateLeadDto {
   @IsOptional()
   @IsString()
   leadTagId?: string;
+
+  @ApiPropertyOptional({ description: 'User ID of the closer (ответственный за закрытие). Null or empty to clear.' })
+  @IsOptional()
+  @IsString()
+  closerId?: string | null;
 }

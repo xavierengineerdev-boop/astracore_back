@@ -78,7 +78,7 @@ export class UserController {
       if (!manager?.departmentId) {
         throw new ForbiddenException('Руководитель должен быть привязан к отделу');
       }
-      return this.userService.findByDepartment(manager.departmentId);
+      return this.userService.findByDepartmentOrWithoutDepartment(manager.departmentId);
     }
     throw new ForbiddenException('Access denied');
   }
@@ -153,8 +153,13 @@ export class UserController {
       const target = await this.userService.findById(id);
       if (!target) throw new NotFoundException('User not found');
       const manager = await this.userService.findById(req.user.userId);
-      if (!manager?.departmentId || String(target.departmentId) !== String(manager.departmentId)) {
-        throw new ForbiddenException('Доступ только к пользователям своего отдела');
+      if (!manager?.departmentId) {
+        throw new ForbiddenException('Руководитель должен быть привязан к отделу');
+      }
+      const targetInMyDept = target.departmentId && String(target.departmentId) === String(manager.departmentId);
+      const targetWithoutDept = !target.departmentId;
+      if (!targetInMyDept && !targetWithoutDept) {
+        throw new ForbiddenException('Доступ только к пользователям своего отдела или без отдела');
       }
       return target;
     }
@@ -193,8 +198,13 @@ export class UserController {
 
     if (creatorRole === 'manager') {
       const manager = await this.userService.findById(req.user.userId);
-      if (!manager?.departmentId || String(target.departmentId) !== String(manager.departmentId)) {
-        throw new ForbiddenException('Можно редактировать только сотрудников своего отдела');
+      if (!manager?.departmentId) {
+        throw new ForbiddenException('Руководитель должен быть привязан к отделу');
+      }
+      const targetInMyDept = target.departmentId && String(target.departmentId) === String(manager.departmentId);
+      const targetWithoutDept = !target.departmentId;
+      if (!targetInMyDept && !targetWithoutDept) {
+        throw new ForbiddenException('Можно редактировать только сотрудников своего отдела или пользователей без отдела');
       }
       if (targetRole !== 'employee') {
         throw new ForbiddenException('Руководитель может редактировать только сотрудников (employee)');
@@ -202,13 +212,20 @@ export class UserController {
       if (dto.role !== undefined && dto.role !== 'employee') {
         throw new ForbiddenException('Руководитель может создавать только сотрудников');
       }
+      let departmentId = dto.departmentId !== undefined ? (dto.departmentId || undefined) : target.departmentId;
+      if (dto.departmentId !== undefined && dto.departmentId && String(dto.departmentId) !== String(manager.departmentId)) {
+        throw new ForbiddenException('Руководитель может назначать только в свой отдел');
+      }
+      if (dto.departmentId !== undefined && dto.departmentId) {
+        departmentId = manager.departmentId;
+      }
       return this.userService.update(id, {
         email: dto.email,
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone,
         isActive: dto.isActive,
-        departmentId: dto.departmentId !== undefined ? (dto.departmentId || undefined) : target.departmentId,
+        departmentId,
       });
     }
 

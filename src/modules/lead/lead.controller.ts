@@ -53,6 +53,7 @@ export class LeadController {
         sourceMeta: dto.sourceMeta,
         assignedTo: dto.assignedTo,
         leadTagId: dto.leadTagId !== undefined ? (dto.leadTagId?.trim() || null) : undefined,
+        closerId: dto.closerId !== undefined ? (dto.closerId?.trim() || null) : undefined,
       },
       req.user.userId,
       req.user.role as UserRole,
@@ -85,10 +86,11 @@ export class LeadController {
     }
     const leadIds = (dto.leadIds || []).filter((id) => id?.trim()).map((id) => id.trim());
     if (leadIds.length === 0) return { updated: 0 };
-    const payload: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null } = {};
+    const payload: { statusId?: string; assignedTo?: string[]; leadTagId?: string | null; closerId?: string | null } = {};
     if (dto.statusId !== undefined) payload.statusId = dto.statusId?.trim() ?? '';
     if (dto.assignedTo !== undefined) payload.assignedTo = dto.assignedTo;
     if (dto.leadTagId !== undefined) payload.leadTagId = dto.leadTagId && String(dto.leadTagId).trim() ? String(dto.leadTagId).trim() : null;
+    if (dto.closerId !== undefined) payload.closerId = dto.closerId && String(dto.closerId).trim() ? String(dto.closerId).trim() : null;
     return this.leadService.bulkUpdate(leadIds, payload, req.user.userId, req.user.role as UserRole);
   }
 
@@ -106,7 +108,7 @@ export class LeadController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List leads by department with pagination, filters and sort' })
+  @ApiOperation({ summary: 'List leads by department with pagination, filters and sort. Руководитель (manager): только свой отдел.' })
   @ApiResponse({ status: 200, description: 'Paginated list of leads' })
   async findAll(
     @Req() req: ReqUser,
@@ -373,6 +375,7 @@ export class LeadController {
         assignedTo: dto.assignedTo,
         comment: dto.comment !== undefined ? (dto.comment ?? '').trim() : undefined,
         leadTagId: dto.leadTagId !== undefined ? (dto.leadTagId?.trim() || null) : undefined,
+        closerId: dto.closerId !== undefined ? (dto.closerId?.trim() || null) : undefined,
       },
       req.user.userId,
       req.user.role as UserRole,

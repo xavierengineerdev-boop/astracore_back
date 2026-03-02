@@ -119,6 +119,22 @@ export class UserService {
     return users.map((u: any) => this.toUserItem(u));
   }
 
+  /** Руководитель: пользователи своего отдела + без отдела (чтобы добавлять в отдел). */
+  async findByDepartmentOrWithoutDepartment(departmentId: string): Promise<UserItem[]> {
+    const users = await this.userModel
+      .find({
+        $or: [
+          { departmentId: new Types.ObjectId(departmentId) },
+          { departmentId: null },
+          { departmentId: { $exists: false } },
+        ],
+      })
+      .select('-password')
+      .lean()
+      .exec();
+    return users.map((u: any) => this.toUserItem(u));
+  }
+
   async findById(id: string): Promise<UserItem | null> {
     const user = await this.userModel.findById(id).select('-password').lean().exec();
     return user ? this.toUserItem(user) : null;

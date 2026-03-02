@@ -86,6 +86,10 @@ export class Lead {
 
   @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User', default: [] })
   assignedTo: MongooseSchema.Types.ObjectId[];
+
+  /** Ответственный за закрытие (клоузер). Руководитель передаёт лид на клоузера. */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
+  closerId: MongooseSchema.Types.ObjectId | null;
 }
 
 export const LeadSchema = SchemaFactory.createForClass(Lead);
