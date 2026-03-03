@@ -47,6 +47,7 @@ export class AuthController {
       lastName: profile?.lastName ?? '',
       lastLoginAt: profile?.lastLoginAt ?? undefined,
       departmentId: profile?.departmentId ? String(profile.departmentId) : undefined,
+      sip: profile?.sip ?? '',
     };
   }
 }

@@ -14,6 +14,7 @@ export type UserItem = {
   firstName: string;
   lastName: string;
   phone: string;
+  sip: string;
   isActive: boolean;
   lastLoginAt?: string;
   departmentId?: string;
@@ -65,7 +66,7 @@ export class UserService {
     email: string,
     password: string,
     role: UserRole,
-    extra?: { firstName?: string; lastName?: string; phone?: string; isActive?: boolean; departmentId?: string },
+    extra?: { firstName?: string; lastName?: string; phone?: string; sip?: string; isActive?: boolean; departmentId?: string },
   ): Promise<UserItem> {
     const normalized = email.toLowerCase();
     const existing = await this.userModel.findOne({ email: normalized }).exec();
@@ -80,6 +81,7 @@ export class UserService {
       firstName: extra?.firstName ?? '',
       lastName: extra?.lastName ?? '',
       phone: extra?.phone ?? '',
+      sip: extra?.sip ?? '',
       isActive: extra?.isActive ?? true,
       departmentId: extra?.departmentId ? new Types.ObjectId(extra.departmentId) as any : undefined,
     });
@@ -96,6 +98,7 @@ export class UserService {
       firstName: u.firstName ?? '',
       lastName: u.lastName ?? '',
       phone: u.phone ?? '',
+      sip: u.sip ?? '',
       isActive: u.isActive !== false,
       lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : undefined,
       departmentId: u.departmentId ? String(u.departmentId) : undefined,
@@ -148,6 +151,7 @@ export class UserService {
       firstName?: string;
       lastName?: string;
       phone?: string;
+      sip?: string;
       isActive?: boolean;
       departmentId?: string;
     },
@@ -164,6 +168,7 @@ export class UserService {
     if (dto.firstName !== undefined) doc.firstName = dto.firstName;
     if (dto.lastName !== undefined) doc.lastName = dto.lastName;
     if (dto.phone !== undefined) doc.phone = dto.phone;
+    if (dto.sip !== undefined) doc.sip = dto.sip;
     if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     if (dto.departmentId !== undefined) doc.departmentId = dto.departmentId ? (new Types.ObjectId(dto.departmentId) as any) : undefined;
     await doc.save();

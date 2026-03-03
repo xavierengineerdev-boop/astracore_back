@@ -32,6 +32,11 @@ export class CreateUserDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ description: 'SIP-адрес/номер для телефонии' })
+  @IsOptional()
+  @IsString()
+  sip?: string;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()

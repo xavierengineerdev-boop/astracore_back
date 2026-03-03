@@ -24,6 +24,10 @@ export class User {
   @Prop({ default: '' })
   phone: string;
 
+  /** SIP-адрес/номер для телефонии (сотрудник/руководитель может указать свои данные). */
+  @Prop({ default: '' })
+  sip: string;
+
   @Prop({ default: true })
   isActive: boolean;
 

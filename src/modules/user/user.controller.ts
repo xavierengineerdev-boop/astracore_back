@@ -60,6 +60,7 @@ export class UserController {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone: dto.phone,
+      sip: dto.sip,
       isActive: dto.isActive,
       departmentId,
     });
@@ -188,6 +189,7 @@ export class UserController {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone,
+        sip: dto.sip,
         isActive: dto.isActive,
       });
     }
@@ -224,6 +226,7 @@ export class UserController {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone,
+        sip: dto.sip,
         isActive: dto.isActive,
         departmentId,
       });
@@ -244,6 +247,7 @@ export class UserController {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone: dto.phone,
+      sip: dto.sip,
       isActive: dto.isActive,
       departmentId: dto.departmentId,
     });
