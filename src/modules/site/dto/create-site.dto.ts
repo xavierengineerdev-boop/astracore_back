@@ -16,4 +16,9 @@ export class CreateSiteDto {
   @IsString()
   @MinLength(1, { message: 'Department is required' })
   departmentId: string;
+
+  @ApiPropertyOptional({ description: 'ID тега источника лида — лиды с этого сайта получат этот тег' })
+  @IsOptional()
+  @IsString()
+  leadTagId?: string | null;
 }

@@ -16,6 +16,10 @@ export class Site {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Department', required: true })
   departmentId: MongooseSchema.Types.ObjectId;
+
+  /** Тег источника лида: лиды с этого сайта получат этот тег */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'LeadTag', default: null })
+  leadTagId: MongooseSchema.Types.ObjectId | null;
 }
 
 export const SiteSchema = SchemaFactory.createForClass(Site);

@@ -40,6 +40,7 @@ export class SiteController {
         url: dto.url,
         description: dto.description,
         departmentId: dto.departmentId.trim(),
+        leadTagId: dto.leadTagId?.trim() || undefined,
       },
       req.user.userId,
       req.user.role as UserRole,
@@ -85,6 +86,7 @@ export class SiteController {
       {
         url: dto.url?.trim(),
         description: dto.description?.trim(),
+        leadTagId: dto.leadTagId !== undefined ? (dto.leadTagId?.trim() || null) : undefined,
       },
       req.user.userId,
       req.user.role as UserRole,

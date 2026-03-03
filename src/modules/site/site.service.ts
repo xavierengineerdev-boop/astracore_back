@@ -1,10 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as crypto from 'crypto';
 import { Site, SiteDocument } from './site.schema';
 import { DepartmentService } from '../department/department.service';
 import { UserService } from '../user/user.service';
+import { LeadTagService } from '../lead-tag/lead-tag.service';
 
 export type SiteItem = {
   _id: string;
@@ -12,6 +13,7 @@ export type SiteItem = {
   description: string;
   token: string;
   departmentId: string;
+  leadTagId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -22,6 +24,7 @@ export class SiteService {
     @InjectModel(Site.name) private siteModel: Model<SiteDocument>,
     private departmentService: DepartmentService,
     private userService: UserService,
+    private leadTagService: LeadTagService,
   ) {}
 
   private generateToken(): string {
@@ -47,7 +50,7 @@ export class SiteService {
   }
 
   async create(
-    dto: { url: string; description?: string; departmentId: string },
+    dto: { url: string; description?: string; departmentId: string; leadTagId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<SiteItem> {
@@ -55,6 +58,13 @@ export class SiteService {
     if (!can) throw new ForbiddenException('You can only create sites for your department or need super role');
     const department = await this.departmentService.findById(dto.departmentId);
     if (!department) throw new NotFoundException('Department not found');
+    const leadTagId = dto.leadTagId?.trim() || null;
+    if (leadTagId) {
+      const tag = await this.leadTagService.findById(leadTagId);
+      if (!tag || String(tag.departmentId) !== String(dto.departmentId)) {
+        throw new BadRequestException('Тег источника должен быть из этого отдела');
+      }
+    }
     let token = this.generateToken();
     let exists = await this.siteModel.findOne({ token }).exec();
     while (exists) {
@@ -66,6 +76,7 @@ export class SiteService {
       description: (dto.description ?? '').trim(),
       token,
       departmentId: new Types.ObjectId(dto.departmentId),
+      leadTagId: leadTagId ? new Types.ObjectId(leadTagId) : null,
     });
     return this.toItem(doc.toObject ? doc.toObject() : (doc as any));
   }
@@ -94,7 +105,7 @@ export class SiteService {
 
   async update(
     id: string,
-    dto: { url?: string; description?: string },
+    dto: { url?: string; description?: string; leadTagId?: string | null },
     userId: string,
     userRole: string,
   ): Promise<SiteItem> {
@@ -105,6 +116,18 @@ export class SiteService {
     if (!can) throw new ForbiddenException('You can only edit sites of your department or need super role');
     if (dto.url !== undefined) doc.url = dto.url.trim();
     if (dto.description !== undefined) doc.description = dto.description.trim();
+    if (dto.leadTagId !== undefined) {
+      const leadTagId = dto.leadTagId?.trim() || null;
+      if (leadTagId) {
+        const tag = await this.leadTagService.findById(leadTagId);
+        if (!tag || String(tag.departmentId) !== departmentId) {
+          throw new BadRequestException('Тег источника должен быть из этого отдела');
+        }
+        (doc as any).leadTagId = new Types.ObjectId(leadTagId);
+      } else {
+        (doc as any).leadTagId = null;
+      }
+    }
     await doc.save();
     return this.toItem(doc.toObject ? doc.toObject() : (doc as any));
   }
@@ -124,6 +147,7 @@ export class SiteService {
       description: d.description ?? '',
       token: d.token ?? '',
       departmentId: String(d.departmentId),
+      leadTagId: d.leadTagId ? String(d.leadTagId) : null,
       createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : '',
       updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : '',
     };

@@ -11,4 +11,9 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ description: 'ID тега источника лида — лиды с этого сайта получат этот тег' })
+  @IsOptional()
+  @IsString()
+  leadTagId?: string | null;
 }

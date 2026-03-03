@@ -360,6 +360,7 @@ export class LeadService {
         departmentId: site.departmentId,
         source: 'site',
         siteId: site._id,
+        leadTagId: (site as any).leadTagId ?? undefined,
         sourceMeta: hasMeta || sourceMeta.extra ? sourceMeta : undefined,
       },
       managerId,
