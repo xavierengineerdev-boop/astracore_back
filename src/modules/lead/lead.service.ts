@@ -510,6 +510,7 @@ export class LeadService {
     if (filters?.leadTagId?.trim()) {
       query.leadTagId = new Types.ObjectId(filters.leadTagId.trim());
     }
+    // Фильтр по дате — по полю «Изменён» (updatedAt), чтобы совпадало с колонкой в таблице
     if (filters?.dateFrom?.trim() || filters?.dateTo?.trim()) {
       const from = filters.dateFrom?.trim()
         ? new Date(filters.dateFrom.trim() + 'T00:00:00.000Z')
@@ -518,18 +519,19 @@ export class LeadService {
         ? new Date(filters.dateTo.trim() + 'T23:59:59.999Z')
         : null;
       if (from && to && !isNaN(from.getTime()) && !isNaN(to.getTime())) {
-        query.createdAt = { $gte: from, $lte: to };
+        query.updatedAt = { $gte: from, $lte: to };
       } else if (from && !isNaN(from.getTime())) {
-        query.createdAt = { $gte: from };
+        query.updatedAt = { $gte: from };
       } else if (to && !isNaN(to.getTime())) {
-        query.createdAt = { $lte: to };
+        query.updatedAt = { $lte: to };
       }
     }
     const sortBy = sort?.sortBy?.trim() || 'createdAt';
     const sortOrder = sort?.sortOrder === 'asc' ? 1 : -1;
     const allowedSortFields = ['name', 'phone', 'email', 'createdAt', 'updatedAt', 'statusId'];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
-    const sortOpt = { [sortField]: sortOrder };
+    // Основная сортировка + _id для стабильного порядка при одинаковых датах
+    const sortOpt = { [sortField]: sortOrder, _id: sortOrder };
 
     const [items, total] = await Promise.all([
       this.leadModel
@@ -1262,7 +1264,7 @@ export class LeadService {
     const assigneeId = new Types.ObjectId(assigneeUserId);
     const query: Record<string, unknown> = {
       departmentId: { $in: objectIds },
-      assignedTo: assigneeId,
+      $or: [{ assignedTo: assigneeId }, { closerId: assigneeId }],
     };
     if (filters?.name?.trim()) query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
     if (filters?.phone?.trim()) query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
@@ -1347,7 +1349,10 @@ export class LeadService {
 
     const objectIds = deptIds.map((id) => new Types.ObjectId(id));
     const assigneeId = new Types.ObjectId(assigneeUserId);
-    const match = { departmentId: { $in: objectIds }, assignedTo: assigneeId };
+    const match = {
+      departmentId: { $in: objectIds },
+      $or: [{ assignedTo: assigneeId }, { closerId: assigneeId }],
+    };
 
     const [total, aggStatus, aggOverTime] = await Promise.all([
       this.leadModel.countDocuments(match).exec(),

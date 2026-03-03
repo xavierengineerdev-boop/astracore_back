@@ -102,11 +102,16 @@ export class UserController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
   ): Promise<LeadListResult> {
-    const isOwn = String(req.user.userId) === String(id);
-    const canList = ROLES_CAN_LIST.includes(req.user.role as UserRole);
-    if (!canList && !isOwn) throw new ForbiddenException('Access denied');
     const target = await this.userService.findById(id);
     if (!target) throw new NotFoundException('User not found');
+    const isOwn = String(req.user.userId) === String(id);
+    const canList = ROLES_CAN_LIST.includes(req.user.role as UserRole);
+    let managerViewingDeptMember = false;
+    if (req.user.role === 'manager' && target.departmentId) {
+      const manager = await this.userService.findById(req.user.userId);
+      managerViewingDeptMember = Boolean(manager?.departmentId && String(manager.departmentId) === String(target.departmentId));
+    }
+    if (!canList && !isOwn && !managerViewingDeptMember) throw new ForbiddenException('Access denied');
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
     const limitNum = Math.min(1000, Math.max(1, parseInt(limit ?? '25', 10) || 25));
     const filters = name || phone || email || statusId || departmentId || lastCommentDateFrom || lastCommentDateTo
