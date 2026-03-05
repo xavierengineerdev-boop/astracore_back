@@ -457,6 +457,7 @@ export class LeadService {
       email?: string;
       search?: string;
       statusId?: string;
+      statusIds?: string[];
       assignedTo?: string;
       leadTagId?: string;
       unassignedOnly?: boolean;
@@ -502,7 +503,9 @@ export class LeadService {
         query.email = new RegExp(this.escapeRegex(filters.email.trim()), 'i');
       }
     }
-    if (filters?.statusId?.trim()) {
+    if (filters?.statusIds?.length) {
+      query.statusId = { $in: filters.statusIds.map((id) => new Types.ObjectId(id.trim())).filter((id) => id) };
+    } else if (filters?.statusId?.trim()) {
       query.statusId = new Types.ObjectId(filters.statusId.trim());
     }
     if (filters?.assignedTo?.trim() && userRole !== 'employee' && !filters?.unassignedOnly) {

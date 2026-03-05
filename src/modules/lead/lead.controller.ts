@@ -120,6 +120,7 @@ export class LeadController {
     @Query('email') email?: string,
     @Query('search') search?: string,
     @Query('statusId') statusId?: string,
+    @Query('statusIds') statusIds?: string,
     @Query('assignedTo') assignedTo?: string,
     @Query('leadTagId') leadTagId?: string,
     @Query('unassignedOnly') unassignedOnly?: string,
@@ -132,9 +133,14 @@ export class LeadController {
     const skipNum = Math.max(0, parseInt(skip ?? '0', 10) || 0);
     const limitNum = Math.min(1000, Math.max(1, parseInt(limit ?? '50', 10) || 50));
     const unassignedOnlyBool = unassignedOnly === 'true' || unassignedOnly === '1';
+    const statusIdsArr = statusIds?.trim()
+      ? statusIds.split(',').map((s) => s.trim()).filter(Boolean)
+      : statusId?.trim()
+        ? [statusId.trim()]
+        : undefined;
     const filters =
-      name || phone || email || search || statusId || assignedTo || leadTagId?.trim() || unassignedOnlyBool || dateFrom || dateTo
-        ? { name, phone, email, search, statusId, assignedTo, leadTagId: leadTagId?.trim(), unassignedOnly: unassignedOnlyBool, dateFrom, dateTo }
+      name || phone || email || search || (statusIdsArr && statusIdsArr.length > 0) || assignedTo || leadTagId?.trim() || unassignedOnlyBool || dateFrom || dateTo
+        ? { name, phone, email, search, statusIds: statusIdsArr, assignedTo, leadTagId: leadTagId?.trim(), unassignedOnly: unassignedOnlyBool, dateFrom, dateTo }
         : undefined;
     const sort =
       sortBy || sortOrder
