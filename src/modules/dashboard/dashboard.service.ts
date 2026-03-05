@@ -277,7 +277,12 @@ export class DashboardService {
     const leadIdSet = new Set(leadIds.map((l: any) => String(l._id)));
     const [reminders, tasks] = await Promise.all([
       this.leadReminderModel
-        .find({ leadId: { $in: leadIds.map((l: any) => l._id) }, done: false, remindAt: { $gte: startOfWeek, $lte: endOfWeek } })
+        .find({
+          leadId: { $in: leadIds.map((l: any) => l._id) },
+          done: false,
+          remindAt: { $gte: startOfWeek, $lte: endOfWeek },
+          createdBy: new Types.ObjectId(userId),
+        })
         .sort({ remindAt: 1 })
         .lean()
         .exec(),

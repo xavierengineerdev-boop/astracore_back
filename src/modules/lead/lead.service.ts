@@ -1073,30 +1073,27 @@ export class LeadService {
     await this.addHistory(leadId, 'reminder_deleted', userId, { reminderId, title });
   }
 
-  /** Напоминания по всем лидам пользователя (для колокольчика в шапке): не выполненные, на ближайшие 24ч или просроченные */
+  /** Напоминания для колокольчика в шапке: только те, что создал текущий пользователь (createdBy). Не выполненные, на ближайшие 24ч или просроченные. */
   async getUpcomingReminders(userId: string, userRole: string): Promise<(LeadReminderItem & { leadName?: string })[]> {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const list = await this.leadReminderModel
-      .find({ done: false, remindAt: { $lte: tomorrow } })
+      .find({
+        done: false,
+        remindAt: { $lte: tomorrow },
+        createdBy: new Types.ObjectId(userId),
+      })
       .sort({ remindAt: 1 })
       .limit(50)
       .lean()
       .exec();
     const leadIds = [...new Set(list.map((r: any) => String(r.leadId)))];
-    const leads = await this.leadModel.find({ _id: { $in: leadIds.map((id) => new Types.ObjectId(id)) } }).lean().exec();
-    const leadMap = new Map(leads.map((l: any) => [String(l._id), l]));
-    const result: (LeadReminderItem & { leadName?: string })[] = [];
-    for (const r of list) {
-      const item = this.toReminderItem(r);
-      const lead = leadMap.get(String((r as any).leadId));
-      const leadItem = lead ? this.toItem(lead) : null;
-      const can = leadItem ? await this.canViewDepartment(leadItem.departmentId, userId, userRole) : false;
-      if (can) {
-        result.push({ ...item, leadName: (lead as any)?.name });
-      }
-    }
-    return result;
+    const leads = await this.leadModel.find({ _id: { $in: leadIds.map((id) => new Types.ObjectId(id)) } }).select('_id name').lean().exec();
+    const leadNameMap = new Map(leads.map((l: any) => [String(l._id), (l as any).name ?? '']));
+    return list.map((r: any) => ({
+      ...this.toReminderItem(r),
+      leadName: leadNameMap.get(String(r.leadId)) ?? '',
+    }));
   }
 
   /** Статистика по статусам: руководитель и сотрудники, лиды по каждому статусу. Доступ: super, admin, manager (свой отдел). */
