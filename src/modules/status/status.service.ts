@@ -24,9 +24,9 @@ export class StatusService {
     private userService: UserService,
   ) {}
 
-  /** Check if user can manage statuses for this department: super or user assigned as department manager (managerId) */
+  /** Check if user can manage statuses: super/admin — любой отдел; руководитель — только свой (managerId). */
   async canManageDepartment(departmentId: string, userId: string, userRole: string): Promise<boolean> {
-    if (userRole === 'super') return true;
+    if (userRole === 'super' || userRole === 'admin') return true;
     const department = await this.departmentService.findById(departmentId);
     return department?.managerId ? String(department.managerId) === String(userId) : false;
   }

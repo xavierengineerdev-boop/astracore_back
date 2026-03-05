@@ -122,18 +122,23 @@ export class UserController {
   }
 
   @Get(':id/lead-stats')
-  @ApiOperation({ summary: 'Lead statistics for this user (by status + over time)' })
+  @ApiOperation({ summary: 'Lead statistics for this user (by status + over time). Руководитель: только сотрудники своего отдела.' })
   @ApiResponse({ status: 200, description: 'Stats' })
   async getUserLeadStats(
     @Req() req: { user: { userId: string; role: string } },
     @Param('id') id: string,
     @Query('days') days?: string,
   ): Promise<UserLeadStatsResult> {
-    const isOwn = String(req.user.userId) === String(id);
-    const canList = ROLES_CAN_LIST.includes(req.user.role as UserRole);
-    if (!canList && !isOwn) throw new ForbiddenException('Access denied');
     const target = await this.userService.findById(id);
     if (!target) throw new NotFoundException('User not found');
+    const isOwn = String(req.user.userId) === String(id);
+    const canList = ROLES_CAN_LIST.includes(req.user.role as UserRole);
+    let managerViewingDeptMember = false;
+    if (req.user.role === 'manager' && target.departmentId) {
+      const manager = await this.userService.findById(req.user.userId);
+      managerViewingDeptMember = Boolean(manager?.departmentId && String(manager.departmentId) === String(target.departmentId));
+    }
+    if (!canList && !isOwn && !managerViewingDeptMember) throw new ForbiddenException('Access denied');
     const daysNum = Math.min(90, Math.max(7, parseInt(days ?? '14', 10) || 14));
     return this.leadService.getLeadStatsForUser(id, req.user.userId, req.user.role, daysNum);
   }
