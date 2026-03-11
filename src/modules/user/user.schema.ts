@@ -36,6 +36,10 @@ export class User {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Department', default: null })
   departmentId?: MongooseSchema.Types.ObjectId;
+
+  /** Персональные настройки UI (ключ — значение), например leads_table_column_widths. */
+  @Prop({ type: MongooseSchema.Types.Mixed, default: () => ({}) })
+  settings?: Record<string, unknown>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

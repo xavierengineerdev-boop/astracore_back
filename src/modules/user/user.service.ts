@@ -143,6 +143,21 @@ export class UserService {
     return user ? this.toUserItem(user) : null;
   }
 
+  /** Настройки текущего пользователя (ключ — значение). */
+  async getSettings(userId: string): Promise<Record<string, unknown>> {
+    const user = await this.userModel.findById(userId).select('settings').lean().exec();
+    const settings = (user as any)?.settings;
+    return settings && typeof settings === 'object' ? { ...settings } : {};
+  }
+
+  /** Обновить одну настройку по ключу (merge для вложенных объектов не делаем — значение перезаписывается). */
+  async updateSetting(userId: string, key: string, value: unknown): Promise<void> {
+    if (!key || typeof key !== 'string') return;
+    await this.userModel
+      .updateOne({ _id: new Types.ObjectId(userId) }, { $set: { [`settings.${key}`]: value } })
+      .exec();
+  }
+
   async update(
     id: string,
     dto: {

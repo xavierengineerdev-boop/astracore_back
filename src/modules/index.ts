@@ -8,8 +8,9 @@ import { LeadModule } from './lead/lead.module';
 import { LeadTagModule } from './lead-tag/lead-tag.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TaskModule } from './task/task.module';
+import { PhoneRuleModule } from './phone-rule/phone-rule.module';
 
-export const modules = [HealthModule, UserModule, AuthModule, DepartmentModule, StatusModule, SiteModule, LeadModule, LeadTagModule, DashboardModule, TaskModule];
+export const modules = [HealthModule, UserModule, AuthModule, DepartmentModule, StatusModule, SiteModule, LeadModule, LeadTagModule, DashboardModule, TaskModule, PhoneRuleModule];
 export { HealthModule } from './health/health.module';
 export { UserModule } from './user/user.module';
 export { AuthModule } from './auth/auth.module';
@@ -20,3 +21,4 @@ export { LeadModule } from './lead/lead.module';
 export { LeadTagModule } from './lead-tag/lead-tag.module';
 export { DashboardModule } from './dashboard/dashboard.module';
 export { TaskModule } from './task/task.module';
+export { PhoneRuleModule } from './phone-rule/phone-rule.module';

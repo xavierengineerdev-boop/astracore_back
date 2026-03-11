@@ -13,6 +13,7 @@ import { DepartmentModule } from '../department/department.module';
 import { UserModule } from '../user/user.module';
 import { StatusModule } from '../status/status.module';
 import { SiteModule } from '../site/site.module';
+import { PhoneRuleModule } from '../phone-rule/phone-rule.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SiteModule } from '../site/site.module';
     forwardRef(() => UserModule),
     StatusModule,
     SiteModule,
+    PhoneRuleModule,
   ],
   controllers: [LeadController, PublicLeadController],
   providers: [LeadService],

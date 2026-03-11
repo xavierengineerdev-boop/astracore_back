@@ -66,6 +66,28 @@ export class UserController {
     });
   }
 
+  @Get('me/settings')
+  @ApiOperation({ summary: 'Настройки текущего пользователя (например ширина колонок таблиц)' })
+  @ApiResponse({ status: 200, description: 'Объект settings' })
+  async getMySettings(@Req() req: { user: { userId: string } }) {
+    return this.userService.getSettings(req.user.userId);
+  }
+
+  @Patch('me/settings')
+  @ApiOperation({ summary: 'Обновить настройку по ключу (например leads_table_column_widths)' })
+  @ApiBody({ schema: { type: 'object', required: ['key', 'value'], properties: { key: { type: 'string' }, value: {} } } })
+  @ApiResponse({ status: 200, description: 'OK' })
+  async patchMySettings(
+    @Req() req: { user: { userId: string } },
+    @Body() body: { key: string; value: unknown },
+  ) {
+    if (!body?.key || typeof body.key !== 'string') {
+      throw new ForbiddenException('key is required');
+    }
+    await this.userService.updateSetting(req.user.userId, body.key, body.value);
+    return { ok: true };
+  }
+
   @Get()
   @ApiOperation({ summary: 'List users. Сотрудники привязаны к отделу — супер/админ: все; руководитель: только свой отдел.' })
   @ApiResponse({ status: 200, description: 'List of users' })

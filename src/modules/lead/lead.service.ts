@@ -11,6 +11,7 @@ import { DepartmentService, DepartmentDetail } from '../department/department.se
 import { UserService } from '../user/user.service';
 import { StatusService } from '../status/status.service';
 import { SiteService } from '../site/site.service';
+import { PhoneRuleService } from '../phone-rule/phone-rule.service';
 
 export type LeadSourceMetaItem = {
   ip?: string;
@@ -45,6 +46,10 @@ export type LeadItem = {
   /** Ответственный за закрытие (клоузер) */
   closerId: string | null;
   comment: string;
+  /** Последний комментарий из списка (для обратной совместимости) */
+  lastComment?: { content: string; createdAt: string };
+  /** Все комментарии лида из списка (как в карточке), от новых к старым — для отображения в таблице */
+  comments?: { content: string; createdAt: string }[];
   createdAt: string;
   updatedAt: string;
 };
@@ -146,6 +151,7 @@ export class LeadService {
     private userService: UserService,
     private statusService: StatusService,
     private siteService: SiteService,
+    private phoneRuleService: PhoneRuleService,
   ) {}
 
   private async addHistory(
@@ -252,7 +258,14 @@ export class LeadService {
       throw new BadRequestException('Клоузером можно назначить только сотрудника или руководителя отдела');
     }
 
-    const phone = (dto.phone ?? '').trim();
+    let phone = '';
+    if (dto.phone != null && String(dto.phone).trim() !== '') {
+      try {
+        phone = this.phoneRuleService.normalizeAndValidate(dto.phone);
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : 'Некорректный номер телефона');
+      }
+    }
     const email = (dto.email ?? '').trim().toLowerCase();
     const deptId = new Types.ObjectId(dto.departmentId);
 
@@ -282,7 +295,14 @@ export class LeadService {
               dto.sourceMeta.extra && typeof dto.sourceMeta.extra === 'object' ? dto.sourceMeta.extra : undefined,
           }
         : undefined;
-    const phone2 = (dto.phone2 ?? '').trim();
+    let phone2 = '';
+    if (dto.phone2 != null && String(dto.phone2).trim() !== '') {
+      try {
+        phone2 = this.phoneRuleService.normalizeAndValidate(dto.phone2);
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : 'Некорректный второй номер телефона');
+      }
+    }
     const email2 = (dto.email2 ?? '').trim().toLowerCase();
     const doc = await this.leadModel.create({
       name: dto.name.trim(),
@@ -380,12 +400,20 @@ export class LeadService {
     if (!department) throw new NotFoundException('Department not found');
 
     const normalized = items
-      .map((i) => ({
-        name: (i.name ?? '').trim(),
-        phone: (i.phone ?? '').trim(),
-        email: (i.email ?? '').trim().toLowerCase(),
-      }))
-      .filter((i) => i.name.length > 0 && i.phone.length > 0);
+      .map((i) => {
+        const name = (i.name ?? '').trim();
+        let phone = '';
+        if (i.phone != null && String(i.phone).trim() !== '') {
+          try {
+            phone = this.phoneRuleService.normalizeAndValidate(i.phone);
+          } catch {
+            return null;
+          }
+        }
+        const email = (i.email ?? '').trim().toLowerCase();
+        return { name, phone, email };
+      })
+      .filter((i): i is { name: string; phone: string; email: string } => i != null && i.name.length > 0 && i.phone.length > 0);
 
     if (normalized.length === 0) {
       return { added: 0, duplicates: items.length };
@@ -482,13 +510,14 @@ export class LeadService {
     if (filters?.search?.trim()) {
       const term = filters.search.trim();
       const re = new RegExp(this.escapeRegex(term), 'i');
-      const digitsOnly = term.replace(/\D/g, '');
-      const phoneRe = digitsOnly.length > 0 ? new RegExp(digitsOnly, 'i') : re;
+      const phoneNorm = this.phoneRuleService.normalize(term).normalized;
+      const phoneExact = phoneNorm.length > 0 ? phoneNorm : null;
       (query as any).$or = [
         { name: re },
         { lastName: re },
-        { $or: [{ phone: re }, { phone: phoneRe }] },
-        { $or: [{ phone2: re }, { phone2: phoneRe }] },
+        ...(phoneExact
+          ? [{ $or: [{ phone: phoneExact }, { phone2: phoneExact }] }]
+          : [{ $or: [{ phone: re }, { phone2: re }] }]),
         { email: re },
         { email2: re },
       ];
@@ -497,7 +526,8 @@ export class LeadService {
         query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
       }
       if (filters?.phone?.trim()) {
-        query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
+        const phoneNorm = this.phoneRuleService.normalize(filters.phone.trim()).normalized;
+        query.phone = phoneNorm.length > 0 ? phoneNorm : new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
       }
       if (filters?.email?.trim()) {
         query.email = new RegExp(this.escapeRegex(filters.email.trim()), 'i');
@@ -547,8 +577,49 @@ export class LeadService {
         .exec(),
       this.leadModel.countDocuments(query).exec(),
     ]);
+    const leadIds = (items as any[]).map((d) => new Types.ObjectId(d._id));
+    const leadIdsStr = leadIds.map((id) => id.toString());
+    const commentsByLeadId = new Map<string, { content: string; createdAt: string }[]>();
+    if (leadIds.length > 0) {
+      const maxPerLead = 20;
+      const grouped = await this.leadCommentModel
+        .aggregate<{ _id: Types.ObjectId | string; comments: { content: string; createdAt: Date }[] }>([
+          { $match: { $or: [{ leadId: { $in: leadIds } }, { leadId: { $in: leadIdsStr } }] } },
+          { $sort: { createdAt: 1 } },
+          { $group: { _id: '$leadId', comments: { $push: { content: '$content', createdAt: '$createdAt' } } } },
+          { $project: { comments: { $slice: ['$comments', -maxPerLead, maxPerLead] } } },
+        ])
+        .exec();
+      grouped.forEach((g) => {
+        const lid = typeof g._id === 'string' ? g._id : g._id.toString();
+        const existing = commentsByLeadId.get(lid);
+        const mapped = (g.comments || []).map((c) => ({
+          content: c.content ?? '',
+          createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
+        }));
+        if (existing) {
+          const combined = [...existing, ...mapped].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          commentsByLeadId.set(lid, combined.slice(-maxPerLead));
+        } else {
+          commentsByLeadId.set(lid, mapped);
+        }
+      });
+    }
     return {
-      items: items.map((d: any) => this.toItem(d)),
+      items: items.map((d: any) => {
+        const item = this.toItem(d);
+        const lid = String(d._id);
+        let comments = commentsByLeadId.get(lid);
+        if (!comments || comments.length === 0) {
+          const legacyComment = (d.comment ?? '').trim();
+          if (legacyComment) {
+            comments = [{ content: legacyComment, createdAt: '' }];
+          }
+        }
+        if (!comments || comments.length === 0) return item;
+        const lastComment = comments[comments.length - 1];
+        return { ...item, comments, lastComment };
+      }),
       total,
       skip,
       limit,
@@ -580,6 +651,9 @@ export class LeadService {
     const item = this.toItem(doc.toObject ? doc.toObject() : (doc as any));
     const can = await this.canEditLead(item, userId, userRole);
     if (!can) throw new ForbiddenException('You cannot edit this lead');
+    if (dto.leadTagId !== undefined && userRole === 'employee') {
+      throw new ForbiddenException('Изменять источник лида может только руководитель или админ');
+    }
 
     const deptId = new Types.ObjectId(item.departmentId);
     const idObj = new Types.ObjectId(id);
@@ -626,7 +700,14 @@ export class LeadService {
       }
     }
     if (dto.phone !== undefined) {
-      const phone = dto.phone.trim();
+      let phone = '';
+      if (dto.phone != null && String(dto.phone).trim() !== '') {
+        try {
+          phone = this.phoneRuleService.normalizeAndValidate(dto.phone);
+        } catch (e) {
+          throw new BadRequestException(e instanceof Error ? e.message : 'Некорректный номер телефона');
+        }
+      }
       if (phone) {
         const existingByPhone = await this.leadModel.findOne({ departmentId: deptId, phone, _id: { $ne: idObj } }).lean().exec();
         if (existingByPhone) throw new BadRequestException('Лид с таким телефоном уже существует');
@@ -642,7 +723,17 @@ export class LeadService {
       }
       doc.email = email;
     }
-    if (dto.phone2 !== undefined) doc.phone2 = (dto.phone2 ?? '').trim();
+    if (dto.phone2 !== undefined) {
+      let phone2 = '';
+      if (dto.phone2 != null && String(dto.phone2).trim() !== '') {
+        try {
+          phone2 = this.phoneRuleService.normalizeAndValidate(dto.phone2);
+        } catch (e) {
+          throw new BadRequestException(e instanceof Error ? e.message : 'Некорректный второй номер телефона');
+        }
+      }
+      doc.phone2 = phone2;
+    }
     if (dto.email2 !== undefined) doc.email2 = (dto.email2 ?? '').trim().toLowerCase();
     if (dto.name !== undefined) doc.name = dto.name.trim();
     if (dto.lastName !== undefined) doc.lastName = (dto.lastName ?? '').trim();
@@ -1268,7 +1359,11 @@ export class LeadService {
       $or: [{ assignedTo: assigneeId }, { closerId: assigneeId }],
     };
     if (filters?.name?.trim()) query.name = new RegExp(this.escapeRegex(filters.name.trim()), 'i');
-    if (filters?.phone?.trim()) query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
+    if (filters?.phone?.trim()) {
+      const phoneNorm = this.phoneRuleService.normalize(filters.phone.trim()).normalized;
+      if (phoneNorm.length > 0) query.phone = phoneNorm;
+      else query.phone = new RegExp(this.escapeRegex(filters.phone.trim()), 'i');
+    }
     if (filters?.email?.trim()) query.email = new RegExp(this.escapeRegex(filters.email.trim()), 'i');
     if (filters?.statusId?.trim()) query.statusId = new Types.ObjectId(filters.statusId.trim());
     if (filters?.departmentId?.trim()) query.departmentId = new Types.ObjectId(filters.departmentId.trim());
