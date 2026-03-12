@@ -938,6 +938,7 @@ export class LeadService {
       updatedAt: docObj.updatedAt ? new Date(docObj.updatedAt).toISOString() : '',
     };
     await this.addHistory(leadId, 'comment_added', userId, { commentId: commentItem._id, content: trimmed });
+    await this.leadModel.updateOne({ _id: new Types.ObjectId(leadId) }, { $currentDate: { updatedAt: true } }).exec();
     return commentItem;
   }
 
@@ -958,6 +959,7 @@ export class LeadService {
     doc.content = trimmed;
     await doc.save();
     await this.addHistory(leadId, 'comment_edited', userId, { commentId, content: trimmed });
+    await this.leadModel.updateOne({ _id: new Types.ObjectId(leadId) }, { $currentDate: { updatedAt: true } }).exec();
     const docObj = doc as any;
     return {
       _id: String(doc._id),
@@ -983,6 +985,7 @@ export class LeadService {
     }
     await this.leadCommentModel.findByIdAndDelete(commentId).exec();
     await this.addHistory(leadId, 'comment_deleted', userId, { commentId });
+    await this.leadModel.updateOne({ _id: new Types.ObjectId(leadId) }, { $currentDate: { updatedAt: true } }).exec();
   }
 
   private toTaskItem(doc: any): LeadTaskItem {
