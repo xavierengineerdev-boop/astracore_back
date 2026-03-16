@@ -31,6 +31,10 @@ export class Task {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy: MongooseSchema.Types.ObjectId;
+
+  /** Опциональная привязка к лиду (задача из задачника может отображаться в карточке лида). */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Lead', default: null })
+  leadId: MongooseSchema.Types.ObjectId | null;
 }
 
 export const TaskSchema = SchemaFactory.createForClass(Task);

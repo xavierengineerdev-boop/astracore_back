@@ -23,6 +23,8 @@ export type TaskItem = {
   dueAt: string | null;
   order: number;
   createdBy: string;
+  createdByName?: string;
+  leadId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -49,6 +51,7 @@ export class TaskService {
       dueAt: doc.dueAt ? new Date(doc.dueAt).toISOString() : null,
       order: doc.order ?? 0,
       createdBy: String(doc.createdBy),
+      leadId: doc.leadId ? String(doc.leadId) : null,
       createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : '',
       updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : '',
     };
@@ -63,6 +66,7 @@ export class TaskService {
       priorityId?: string | null;
       assigneeId?: string | null;
       dueAt?: string | null;
+      leadId?: string | null;
     },
     userId: string,
   ): Promise<TaskItem> {
@@ -101,9 +105,11 @@ export class TaskService {
       dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
       order: nextOrder,
       createdBy: new Types.ObjectId(userId),
+      leadId: dto.leadId?.trim() ? new Types.ObjectId(dto.leadId.trim()) : null,
     });
     const item = this.toItem(doc.toObject ? doc.toObject() : doc);
     await this.enrichWithAssigneeName(item);
+    await this.enrichWithCreatedByName(item);
     await this.enrichWithBlock(item);
     await this.enrichWithPriority(item);
     return item;
@@ -115,6 +121,16 @@ export class TaskService {
       if (user) {
         const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
         item.assigneeName = name || user.email;
+      }
+    }
+  }
+
+  private async enrichWithCreatedByName(item: TaskItem): Promise<void> {
+    if (item.createdBy) {
+      const user = await this.userService.findById(item.createdBy);
+      if (user) {
+        const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+        item.createdByName = name || user.email;
       }
     }
   }
@@ -140,14 +156,31 @@ export class TaskService {
   }
 
   async findByDepartment(departmentId: string): Promise<TaskItem[]> {
+    return this.findByDepartmentFiltered(departmentId, null);
+  }
+
+  /**
+   * Список задач отдела с опциональной фильтрацией «только свои» (assignee или author).
+   * Используется для роли employee.
+   */
+  async findByDepartmentFiltered(
+    departmentId: string,
+    onlyOwnUserId: string | null,
+  ): Promise<TaskItem[]> {
+    const baseFilter: any = { departmentId: new Types.ObjectId(departmentId) };
+    if (onlyOwnUserId) {
+      const uid = new Types.ObjectId(onlyOwnUserId);
+      baseFilter.$or = [{ assigneeId: uid }, { createdBy: uid }];
+    }
     const list = await this.taskModel
-      .find({ departmentId: new Types.ObjectId(departmentId) })
+      .find(baseFilter)
       .sort({ statusId: 1, order: 1, createdAt: -1 })
       .lean()
       .exec();
     const items = list.map((d: any) => this.toItem(d));
     for (const item of items) {
       await this.enrichWithAssigneeName(item);
+      await this.enrichWithCreatedByName(item);
       await this.enrichWithBlock(item);
       await this.enrichWithPriority(item);
     }
@@ -159,9 +192,27 @@ export class TaskService {
     if (!doc) return null;
     const item = this.toItem(doc);
     await this.enrichWithAssigneeName(item);
+    await this.enrichWithCreatedByName(item);
     await this.enrichWithBlock(item);
     await this.enrichWithPriority(item);
     return item;
+  }
+
+  /** Задачи задачника, привязанные к лиду (для отображения в карточке лида). */
+  async findByLeadId(leadId: string): Promise<TaskItem[]> {
+    const list = await this.taskModel
+      .find({ leadId: new Types.ObjectId(leadId) })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+    const items = list.map((d: any) => this.toItem(d));
+    for (const item of items) {
+      await this.enrichWithAssigneeName(item);
+      await this.enrichWithCreatedByName(item);
+      await this.enrichWithBlock(item);
+      await this.enrichWithPriority(item);
+    }
+    return items;
   }
 
   async update(
@@ -174,6 +225,7 @@ export class TaskService {
       assigneeId?: string | null;
       dueAt?: string | null;
       order?: number;
+      leadId?: string | null;
     },
   ): Promise<TaskItem> {
     const doc = await this.taskModel.findById(id).exec();
@@ -218,9 +270,12 @@ export class TaskService {
       doc.assigneeId = dto.assigneeId ? (new Types.ObjectId(dto.assigneeId) as any) : null;
     if (dto.dueAt !== undefined) doc.dueAt = dto.dueAt ? new Date(dto.dueAt) : null;
     if (dto.order !== undefined) (doc as any).order = dto.order;
+    if (dto.leadId !== undefined)
+      (doc as any).leadId = dto.leadId?.trim() ? new Types.ObjectId(dto.leadId.trim()) : null;
     await doc.save();
     const item = this.toItem(doc.toObject ? doc.toObject() : doc);
     await this.enrichWithAssigneeName(item);
+    await this.enrichWithCreatedByName(item);
     await this.enrichWithBlock(item);
     await this.enrichWithPriority(item);
     return item;

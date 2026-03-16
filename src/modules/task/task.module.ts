@@ -11,6 +11,7 @@ import { TaskPriorityService } from './task-priority.service';
 import { TaskPriorityController } from './task-priority.controller';
 import { DepartmentModule } from '../department/department.module';
 import { UserModule } from '../user/user.module';
+import { LeadModule } from '../lead/lead.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { UserModule } from '../user/user.module';
     ]),
     DepartmentModule,
     UserModule,
+    LeadModule,
   ],
   controllers: [TaskController, TaskStatusController, TaskPriorityController],
   providers: [TaskService, TaskStatusService, TaskPriorityService],

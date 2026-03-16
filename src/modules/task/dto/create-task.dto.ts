@@ -38,4 +38,10 @@ export class CreateTaskDto {
   @IsOptional()
   @IsDateString()
   dueAt?: string;
+
+  @ApiPropertyOptional({ description: 'ID лида (задача появится в карточке лида)' })
+  @IsOptional()
+  @IsString()
+  @IsMongoId()
+  leadId?: string;
 }

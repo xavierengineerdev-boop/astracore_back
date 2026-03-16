@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { TaskStatus, TaskStatusDocument } from './task-status.schema';
 import { DepartmentService } from '../department/department.service';
+import { DEFAULT_TASK_STATUSES } from './task-board-defaults.constant';
 
 export type TaskStatusItem = {
   _id: string;
@@ -61,6 +62,33 @@ export class TaskStatusService {
       .lean()
       .exec();
     return list.map((s: any) => this.toItem(s));
+  }
+
+  /**
+   * Создаёт дефолтные статусы задачника для отдела, если у отдела ещё нет ни одного статуса.
+   * Идемпотентно: повторный вызов не дублирует записи.
+   */
+  async ensureDefaultsForDepartment(departmentId: string): Promise<TaskStatusItem[]> {
+    const existing = await this.taskStatusModel
+      .countDocuments({ departmentId: new Types.ObjectId(departmentId) })
+      .exec();
+    if (existing > 0) {
+      return this.findByDepartment(departmentId);
+    }
+    const department = await this.departmentService.findById(departmentId);
+    if (!department) throw new NotFoundException('Department not found');
+    const deptId = new Types.ObjectId(departmentId);
+    for (let i = 0; i < DEFAULT_TASK_STATUSES.length; i++) {
+      const s = DEFAULT_TASK_STATUSES[i];
+      await this.taskStatusModel.create({
+        name: s.name,
+        color: s.color,
+        order: i,
+        isCompleted: s.isCompleted,
+        departmentId: deptId,
+      });
+    }
+    return this.findByDepartment(departmentId);
   }
 
   async findById(id: string): Promise<TaskStatusItem | null> {

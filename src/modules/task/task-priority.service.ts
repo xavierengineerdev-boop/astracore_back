@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { TaskPriority, TaskPriorityDocument } from './task-priority.schema';
 import { DepartmentService } from '../department/department.service';
+import { DEFAULT_TASK_PRIORITIES } from './task-board-defaults.constant';
 
 export type TaskPriorityItem = {
   _id: string;
@@ -58,6 +59,31 @@ export class TaskPriorityService {
       .lean()
       .exec();
     return list.map((s: any) => this.toItem(s));
+  }
+
+  /**
+   * Создаёт дефолтные приоритеты задачника для отдела (Low, Medium, High, Fire), если их ещё нет.
+   */
+  async ensureDefaultsForDepartment(departmentId: string): Promise<TaskPriorityItem[]> {
+    const existing = await this.taskPriorityModel
+      .countDocuments({ departmentId: new Types.ObjectId(departmentId) })
+      .exec();
+    if (existing > 0) {
+      return this.findByDepartment(departmentId);
+    }
+    const department = await this.departmentService.findById(departmentId);
+    if (!department) throw new NotFoundException('Department not found');
+    const deptId = new Types.ObjectId(departmentId);
+    for (let i = 0; i < DEFAULT_TASK_PRIORITIES.length; i++) {
+      const p = DEFAULT_TASK_PRIORITIES[i];
+      await this.taskPriorityModel.create({
+        name: p.name,
+        color: p.color,
+        order: i,
+        departmentId: deptId,
+      });
+    }
+    return this.findByDepartment(departmentId);
   }
 
   async findById(id: string): Promise<TaskPriorityItem | null> {
